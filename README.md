@@ -2,6 +2,21 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+### Configure API base URL
+
+This admin web calls the backend auth endpoints:
+
+- `POST /api/admin/auth/register`
+- `POST /api/admin/auth/login`
+
+Set `NEXT_PUBLIC_API_BASE_URL` to your backend base URL (example when BE runs on port 8081).
+
+Create `banking-admin/.env` (or `banking-admin/.env.local`):
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8081
+```
+
 First, run the development server:
 
 ```bash
