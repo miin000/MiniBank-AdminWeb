@@ -40,7 +40,14 @@ const toneStyles: Record<string, string> = {
 const navItems = [
   { label: "Dashboard", href: "/" },
   { label: "Quan ly tai khoan", href: "/staff" },
-  { label: "Quan ly khach hang", href: "/" },
+  {
+    label: "Quan ly khach hang", href: "#",
+    isDropdown: true, subItems: [
+      { label: "Danh sách khách hàng", href: "/customers" },
+      { label: "Kiểm duyệt KYC", href: "/customers/kyc" },
+      { label: "Tài liệu khách hàng", href: "/customers/documents" },
+    ]
+  },
   { label: "Tai khoan & Giao dich", href: "/" },
   { label: "San pham tai chinh", href: "/" },
   { label: "Yeu cau thu tuc", href: "/" },
@@ -91,6 +98,7 @@ export default function Home() {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AdminUser | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [customerMenuOpen, setCustomerMenuOpen] = useState(true);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -136,7 +144,7 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen w-full bg-[#f6f7fb] text-[#111827]">
-      <aside className="hidden w-64 flex-col border-r border-black/5 bg-white p-5 lg:flex">
+      su<aside className="hidden w-64 flex-col border-r border-black/5 bg-white p-5 lg:flex">
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-sm font-semibold text-white">
             MB
@@ -147,23 +155,52 @@ export default function Home() {
           </div>
         </div>
 
-        <nav className="mt-8 flex flex-1 flex-col gap-2">
-          {navItems.map((item) => {
-            const active = pathname === item.href;
+        {navItems.map((item) => {
+          const active = pathname === item.href || (item.subItems?.some(sub => pathname === sub.href));
+
+          // Nếu là mục có Dropdown (Quản lý khách hàng)
+          if (item.isDropdown) {
             return (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition ${
-                  active ? "bg-blue-50 text-blue-700" : "text-zinc-600 hover:bg-zinc-50"
-                }`}
-              >
-                <span className="h-2 w-2 rounded-full bg-current opacity-70" />
-                {item.label}
-              </Link>
+              <div key={item.label} className="flex flex-col gap-1">
+                {/* Tiêu đề nhóm - Chỉ hiện chữ và mũi tên nhỏ */}
+                <div className="flex items-center justify-between px-3 py-2 text-sm font-bold text-zinc-800">
+                  <span>{item.label}</span>
+                  <span className="text-[10px] opacity-40">▼</span>
+                </div>
+
+                {/* Các mục con - Dùng thụt đầu dòng để phân cấp */}
+                <div className="flex flex-col gap-1 border-l border-zinc-100 ml-2 pl-3">
+                  {item.subItems?.map((sub) => (
+                    <Link
+                      key={sub.label}
+                      href={sub.href}
+                      className={`block rounded-lg px-3 py-2 text-sm transition ${pathname === sub.href
+                          ? "bg-blue-50 text-blue-700 font-bold"
+                          : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50"
+                        }`}
+                    >
+                      {sub.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
             );
-          })}
-        </nav>
+          }
+
+          // Nếu là các mục đơn bình thường (Dashboard, Staff...)
+          return (
+            <Link
+              key={item.label}
+              href={item.href}
+              className={`block rounded-xl px-3 py-2 text-sm transition ${pathname === item.href
+                  ? "bg-blue-50 text-blue-700 font-bold"
+                  : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-800"
+                }`}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
 
         <div className="rounded-2xl border border-black/5 bg-gradient-to-br from-blue-600 to-indigo-600 p-4 text-white">
           <div className="text-sm font-semibold">Bao cao thang</div>
@@ -247,9 +284,8 @@ export default function Home() {
                 <div className="flex items-center justify-between">
                   <div className="text-xs text-zinc-500">{item.label}</div>
                   <span
-                    className={`flex h-8 w-8 items-center justify-center rounded-xl text-xs ${
-                      toneStyles[item.tone] ?? "bg-zinc-100 text-zinc-600"
-                    }`}
+                    className={`flex h-8 w-8 items-center justify-center rounded-xl text-xs ${toneStyles[item.tone] ?? "bg-zinc-100 text-zinc-600"
+                      }`}
                   >
                     ●
                   </span>
