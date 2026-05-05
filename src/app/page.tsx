@@ -39,6 +39,7 @@ const toneStyles: Record<string, string> = {
 
 const navItems = [
   { label: "Dashboard", href: "/" },
+  { label: "Kiem duyet KYC", href: "/kyc" },
   { label: "Quan ly tai khoan", href: "/staff" },
   { label: "Quan ly khach hang", href: "/" },
   { label: "Tai khoan & Giao dich", href: "/" },
@@ -239,25 +240,33 @@ export default function Home() {
 
         <main className="flex flex-1 flex-col gap-6 px-6 py-6">
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            {stats.map((item) => (
-              <div
-                key={item.label}
-                className="rounded-2xl border border-black/5 bg-white p-4 shadow-sm"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="text-xs text-zinc-500">{item.label}</div>
-                  <span
-                    className={`flex h-8 w-8 items-center justify-center rounded-xl text-xs ${
-                      toneStyles[item.tone] ?? "bg-zinc-100 text-zinc-600"
-                    }`}
-                  >
-                    ●
-                  </span>
-                </div>
-                <div className="mt-3 text-2xl font-semibold">{item.value}</div>
-                <div className="mt-1 text-xs text-zinc-500">{item.delta}</div>
-              </div>
-            ))}
+            {stats.map((item) => {
+              const StatComponent = item.label === "Cho KYC" ? Link : "div";
+              return (
+                <StatComponent
+                  key={item.label}
+                  href={item.label === "Cho KYC" ? "/kyc" : undefined}
+                  className={`rounded-2xl border border-black/5 bg-white p-4 shadow-sm ${
+                    item.label === "Cho KYC"
+                      ? "cursor-pointer hover:shadow-md transition-shadow"
+                      : ""
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-zinc-500">{item.label}</div>
+                    <span
+                      className={`flex h-8 w-8 items-center justify-center rounded-xl text-xs ${
+                        toneStyles[item.tone] ?? "bg-zinc-100 text-zinc-600"
+                      }`}
+                    >
+                      ●
+                    </span>
+                  </div>
+                  <div className="mt-3 text-2xl font-semibold">{item.value}</div>
+                  <div className="mt-1 text-xs text-zinc-500">{item.delta}</div>
+                </StatComponent>
+              );
+            })}
           </section>
 
           <section className="grid gap-6 xl:grid-cols-2">
