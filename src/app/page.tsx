@@ -53,7 +53,16 @@ const navItems = [
   { label: "San pham tai chinh", href: "/" },
   { label: "Yeu cau thu tuc", href: "/" },
   { label: "Ho tro khach hang", href: "/" },
-  { label: "Quan tri he thong", href: "/" },
+  {
+    label: "Quan tri he thong",
+    href: "#",
+    isDropdown: true,
+    subItems: [
+      { label: "Nhan vien", href: "/staff" },
+      { label: "Vai tro", href: "/system/roles" },
+      { label: "Nhat ky he thong", href: "/system/audit" },
+    ],
+  },
 ];
 
 const lineSeries = [
@@ -176,8 +185,8 @@ export default function Home() {
                       key={sub.label}
                       href={sub.href}
                       className={`block rounded-lg px-3 py-2 text-sm transition ${pathname === sub.href
-                          ? "bg-blue-50 text-blue-700 font-bold"
-                          : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50"
+                        ? "bg-blue-50 text-blue-700 font-bold"
+                        : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50"
                         }`}
                     >
                       {sub.label}
@@ -194,8 +203,8 @@ export default function Home() {
               key={item.label}
               href={item.href}
               className={`block rounded-xl px-3 py-2 text-sm transition ${pathname === item.href
-                  ? "bg-blue-50 text-blue-700 font-bold"
-                  : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-800"
+                ? "bg-blue-50 text-blue-700 font-bold"
+                : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-800"
                 }`}
             >
               {item.label}
