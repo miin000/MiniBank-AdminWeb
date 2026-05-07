@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
+import AdminShell from "../components/admin-shell";
 
 type PasswordForm = {
   currentPassword: string;
@@ -49,20 +49,11 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb] text-[#111827]">
-      <header className="border-b border-black/5 bg-white">
-        <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-6 py-5">
-          <div>
-            <div className="text-lg font-semibold">Đổi mật khẩu</div>
-            <div className="text-xs text-zinc-500">Cập nhật mật khẩu đăng nhập</div>
-          </div>
-          <Link className="text-sm font-medium text-blue-600" href="/">
-            Về dashboard
-          </Link>
-        </div>
-      </header>
-
-      <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-6">
+    <AdminShell
+      title="Doi mat khau"
+      subtitle="Cap nhat mat khau dang nhap"
+    >
+      <main className="mx-auto flex w-full max-w-4xl flex-col gap-6">
         <section className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
           <div className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
             <h2 className="text-sm font-semibold">Lưu ý bảo mật</h2>
@@ -133,6 +124,6 @@ export default function ChangePasswordPage() {
           </div>
         </section>
       </main>
-    </div>
+    </AdminShell>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import AdminShell from "./components/admin-shell";
 
 type AdminUser = {
   id: number;
@@ -36,34 +36,6 @@ const toneStyles: Record<string, string> = {
   teal: "bg-teal-50 text-teal-600",
   cyan: "bg-cyan-50 text-cyan-600",
 };
-
-const navItems = [
-  { label: "Dashboard", href: "/" },
-  { label: "Kiem duyet KYC", href: "/kyc" },
-  { label: "Quan ly tai khoan", href: "/staff" },
-  {
-    label: "Quan ly khach hang", href: "#",
-    isDropdown: true, subItems: [
-      { label: "Danh sách khách hàng", href: "/customers" },
-      { label: "Kiểm duyệt KYC", href: "/customers/kyc" },
-      { label: "Tài liệu khách hàng", href: "/customers/documents" },
-    ]
-  },
-  { label: "Tai khoan & Giao dich", href: "/" },
-  { label: "San pham tai chinh", href: "/" },
-  { label: "Yeu cau thu tuc", href: "/" },
-  { label: "Ho tro khach hang", href: "/" },
-  {
-    label: "Quan tri he thong",
-    href: "#",
-    isDropdown: true,
-    subItems: [
-      { label: "Nhan vien", href: "/staff" },
-      { label: "Vai tro", href: "/system/roles" },
-      { label: "Nhat ky he thong", href: "/system/audit" },
-    ],
-  },
-];
 
 const lineSeries = [
   { label: "00:00", value: 120 },
@@ -107,9 +79,6 @@ function buildLinePath(values: number[], width: number, height: number) {
 export default function Home() {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AdminUser | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [customerMenuOpen, setCustomerMenuOpen] = useState(true);
-  const pathname = usePathname();
 
   useEffect(() => {
     const t = localStorage.getItem("adminToken");
@@ -153,139 +122,15 @@ export default function Home() {
   );
 
   return (
-    <div className="flex min-h-screen w-full bg-[#f6f7fb] text-[#111827]">
-      su<aside className="hidden w-64 flex-col border-r border-black/5 bg-white p-5 lg:flex">
-        <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-sm font-semibold text-white">
-            MB
-          </div>
-          <div>
-            <div className="text-sm font-semibold">Admin Dashboard</div>
-            <div className="text-xs text-zinc-500">He thong quan tri noi bo</div>
-          </div>
-        </div>
-
-        {navItems.map((item) => {
-          const active = pathname === item.href || (item.subItems?.some(sub => pathname === sub.href));
-
-          // Nếu là mục có Dropdown (Quản lý khách hàng)
-          if (item.isDropdown) {
-            return (
-              <div key={item.label} className="flex flex-col gap-1">
-                {/* Tiêu đề nhóm - Chỉ hiện chữ và mũi tên nhỏ */}
-                <div className="flex items-center justify-between px-3 py-2 text-sm font-bold text-zinc-800">
-                  <span>{item.label}</span>
-                  <span className="text-[10px] opacity-40">▼</span>
-                </div>
-
-                {/* Các mục con - Dùng thụt đầu dòng để phân cấp */}
-                <div className="flex flex-col gap-1 border-l border-zinc-100 ml-2 pl-3">
-                  {item.subItems?.map((sub) => (
-                    <Link
-                      key={sub.label}
-                      href={sub.href}
-                      className={`block rounded-lg px-3 py-2 text-sm transition ${pathname === sub.href
-                        ? "bg-blue-50 text-blue-700 font-bold"
-                        : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50"
-                        }`}
-                    >
-                      {sub.label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            );
-          }
-
-          // Nếu là các mục đơn bình thường (Dashboard, Staff...)
-          return (
-            <Link
-              key={item.label}
-              href={item.href}
-              className={`block rounded-xl px-3 py-2 text-sm transition ${pathname === item.href
-                ? "bg-blue-50 text-blue-700 font-bold"
-                : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-800"
-                }`}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
-
-        <div className="rounded-2xl border border-black/5 bg-gradient-to-br from-blue-600 to-indigo-600 p-4 text-white">
-          <div className="text-sm font-semibold">Bao cao thang</div>
-          <div className="mt-2 text-xs text-white/80">
-            Tong quan giao dich va hieu suat he thong.
-          </div>
-          <button className="mt-4 h-9 w-full rounded-lg bg-white/15 text-xs font-medium">
-            Xem chi tiet
-          </button>
-        </div>
-      </aside>
-
-      <div className="flex min-h-screen flex-1 flex-col">
-        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-black/5 bg-white px-6 py-4">
-          <div>
-            <div className="text-lg font-semibold">Dashboard Tong quan</div>
-            <div className="text-xs text-zinc-500">Cap nhat luc 14:35 30/04/2026</div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button className="flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-sm">
-              🔔
-            </button>
-            <div className="relative">
-              <button
-                className="flex items-center gap-3 rounded-full border border-black/10 bg-white px-3 py-1.5"
-                onClick={() => setMenuOpen((prev) => !prev)}
-                type="button"
-              >
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
-                  TB
-                </div>
-                <div className="text-xs text-left">
-                  <div className="font-semibold">{user?.username ?? "Tran Van B"}</div>
-                  <div className="text-zinc-500">Toan quyen</div>
-                </div>
-                <span className="text-xs text-zinc-400">▾</span>
-              </button>
-
-              {menuOpen ? (
-                <div className="absolute right-0 mt-2 w-52 overflow-hidden rounded-xl border border-black/10 bg-white text-sm shadow-lg">
-                  <Link
-                    className="flex items-center gap-2 px-4 py-2 text-zinc-700 hover:bg-zinc-50"
-                    href="/profile"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Thong tin ca nhan
-                  </Link>
-                  <Link
-                    className="flex items-center gap-2 px-4 py-2 text-zinc-700 hover:bg-zinc-50"
-                    href="/change-password"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Doi mat khau
-                  </Link>
-                  <button
-                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-red-600 hover:bg-red-50"
-                    onClick={() => {
-                      localStorage.removeItem("adminToken");
-                      localStorage.removeItem("adminUser");
-                      setToken(null);
-                      setUser(null);
-                      setMenuOpen(false);
-                    }}
-                    type="button"
-                  >
-                    Dang xuat
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </header>
-
-        <main className="flex flex-1 flex-col gap-6 px-6 py-6">
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+    <AdminShell
+      title="Dashboard Tong quan"
+      subtitle="Cap nhat luc 14:35 30/04/2026"
+      onLogout={() => {
+        setToken(null);
+        setUser(null);
+      }}
+    >
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             {stats.map((item) => {
               const isKyc = item.label === "Cho KYC";
               const cardClassName = `rounded-2xl border border-black/5 bg-white p-4 shadow-sm ${
@@ -293,7 +138,7 @@ export default function Home() {
               }`;
               if (isKyc) {
                 return (
-                  <Link key={item.label} href="/kyc" className={cardClassName}>
+                  <Link key={item.label} href="/customers/kyc" className={cardClassName}>
                     <div className="flex items-center justify-between">
                       <div className="text-xs text-zinc-500">{item.label}</div>
                       <span
@@ -329,7 +174,7 @@ export default function Home() {
             })}
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-2">
+      <section className="grid gap-6 xl:grid-cols-2">
             <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
               <div className="text-sm font-semibold">Giao dich theo thoi gian</div>
               <div className="text-xs text-zinc-500">So luong giao dich trong ngay</div>
@@ -446,9 +291,7 @@ export default function Home() {
                 <div>Mo luong ho tro trong gio cao diem.</div>
               </div>
             </div>
-          </section>
-        </main>
-      </div>
-    </div>
+      </section>
+    </AdminShell>
   );
 }

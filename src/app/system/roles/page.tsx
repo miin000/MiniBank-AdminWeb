@@ -3,13 +3,12 @@
 import {
     Shield,
     Pencil,
-    ArrowLeft,
     Check,
     X,
     Plus,
 } from "lucide-react";
-import Link from "next/link";
 import { useState } from "react";
+import AdminShell from "../../components/admin-shell";
 
 type Permission = {
     module: string;
@@ -113,42 +112,20 @@ export default function RolesPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6">
+        <AdminShell
+            title="Quan ly vai tro"
+            subtitle="Cau hinh vai tro va phan quyen nguoi dung"
+            actions={
+                <button
+                    onClick={() => setShowModal(true)}
+                    className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-purple-700 px-5 py-2 text-white shadow transition hover:scale-[1.02]"
+                >
+                    <Plus size={18} />
+                    Tao vai tro
+                </button>
+            }
+        >
             <div className="mx-auto max-w-6xl">
-
-                {/* HEADER */}
-                <div className="mb-6 flex items-center justify-between">
-                    <div>
-                        <div className="flex items-center gap-3">
-                            <Link
-                                href="/"
-                                className="flex items-center gap-1 text-gray-600 transition hover:text-black"
-                            >
-                                <ArrowLeft size={18} />
-                            </Link>
-
-                            <Shield className="text-purple-600" />
-
-                            <h1 className="text-2xl font-bold text-black">
-                                Quản lý vai trò
-                            </h1>
-                        </div>
-
-                        <p className="ml-7 mt-1 text-sm text-gray-500">
-                            Cấu hình vai trò và phân quyền người dùng
-                        </p>
-                    </div>
-
-                    <button
-                        onClick={() => setShowModal(true)}
-                        className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-purple-700 px-5 py-2 text-white shadow transition hover:scale-[1.02]"
-                    >
-                        <Plus size={18} />
-                        Tạo vai trò
-                    </button>
-                </div>
-
-                {/* GRID */}
                 <div className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-3">
                     {roles.map((role) => (
                         <button
@@ -192,7 +169,6 @@ export default function RolesPage() {
                     ))}
                 </div>
 
-                {/* TABLE */}
                 <div className="overflow-hidden rounded-2xl border bg-white shadow">
                     <div className="border-b p-6">
                         <h2 className="text-2xl font-bold text-black">
@@ -310,6 +286,6 @@ export default function RolesPage() {
                     </div>
                 )}
             </div>
-        </div>
+        </AdminShell>
     );
 }

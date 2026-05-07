@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
+import AdminShell from "../components/admin-shell";
 
 type AdminUser = {
   id: number;
@@ -53,20 +53,11 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb] text-[#111827]">
-      <header className="border-b border-black/5 bg-white">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-5">
-          <div>
-            <div className="text-lg font-semibold">Thông tin cá nhân</div>
-            <div className="text-xs text-zinc-500">Cập nhật hồ sơ tài khoản admin</div>
-          </div>
-          <Link className="text-sm font-medium text-blue-600" href="/">
-            Về dashboard
-          </Link>
-        </div>
-      </header>
-
-      <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-6">
+    <AdminShell
+      title="Thong tin ca nhan"
+      subtitle="Cap nhat ho so tai khoan admin"
+    >
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <section className="grid gap-6 lg:grid-cols-[1.1fr_1.9fr]">
           <div className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
             <div className="flex items-center gap-4">
@@ -159,6 +150,6 @@ export default function ProfilePage() {
           </div>
         </section>
       </main>
-    </div>
+    </AdminShell>
   );
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import AdminShell from "../components/admin-shell";
 
 type AdminUser = {
   id: number;
@@ -193,28 +194,24 @@ export default function StaffPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb] text-[#111827]">
-      <header className="border-b border-black/5 bg-white">
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-5">
-          <div>
-            <div className="text-lg font-semibold">Quản lý tài khoản</div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link className="text-sm font-medium text-blue-600" href="/">
-              Về dashboard
-            </Link>
-            <button
-              className="h-10 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-              onClick={() => setModalOpen(true)}
-              type="button"
-            >
-              Thêm nhân viên
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
+    <>
+      <AdminShell
+        title="Quan ly tai khoan"
+        subtitle="Theo doi tai khoan va vai tro"
+        actions={
+          <button
+            className="h-10 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+            onClick={() => setModalOpen(true)}
+            type="button"
+          >
+            Them nhan vien
+          </button>
+        }
+        onLogout={() => {
+          setToken(null);
+          setUser(null);
+        }}
+      >
         <section className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -318,7 +315,7 @@ export default function StaffPage() {
             </table>
           </div>
         </section>
-      </main>
+      </AdminShell>
 
       {modalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
@@ -434,6 +431,6 @@ export default function StaffPage() {
           </div>
         </div>
       ) : null}
-    </div>
+    </>
   );
 }

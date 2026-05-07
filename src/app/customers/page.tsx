@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
+import AdminShell from "../components/admin-shell";
 
 interface UserSummary {
     id: number;
@@ -99,33 +99,21 @@ export default function CustomerListPage() {
     };
 
     return (
-        <div className="flex min-h-screen flex-col bg-[#F9FAFB] p-8 text-[#111827]">
-            <div className="mb-8 flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-semibold tracking-tight text-[#111827]">Quản lý Khách hàng</h1>
-                    <p className="mt-1 text-sm text-zinc-500">Phê duyệt KYC và quản lý biến động số dư nội bộ.</p>
+        <AdminShell
+            title="Quan ly khach hang"
+            subtitle="Phe duyet KYC va quan ly bien dong so du noi bo."
+            actions={
+                <div className="relative">
+                    <input
+                        type="text"
+                        placeholder="Tim theo ten, SDT..."
+                        className="h-10 w-72 rounded-xl border border-black/10 bg-white px-4 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
                 </div>
-
-                <div className="flex items-center gap-3">
-                    {/* Nút Trở về Trang chủ - Thuần văn bản */}
-                    <Link
-                        href="/"
-                        className="flex h-11 items-center justify-center rounded-xl border border-black/10 bg-white px-5 text-sm font-bold text-zinc-600 shadow-sm transition hover:bg-zinc-50 hover:text-blue-600"
-                    >
-                        QUAY LẠI
-                    </Link>
-
-                    <div className="relative">
-                        <input
-                            type="text"
-                            placeholder="Tìm theo tên, SĐT..."
-                            className="h-11 w-80 rounded-xl border border-black/10 bg-white px-4 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-                </div>
-            </div>
+            }
+        >
             <div className="mb-6 flex gap-1 border-b border-black/5">
 
                 <button
@@ -244,6 +232,6 @@ export default function CustomerListPage() {
                     </div>
                 </div>
             )}
-        </div>
+        </AdminShell>
     );
 }

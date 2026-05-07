@@ -1,27 +1,13 @@
 "use client";
 
-import Link from "next/link";
+import AdminShell from "../components/admin-shell";
 
 export default function SystemPage() {
     return (
-        <div className="min-h-screen bg-[#f6f7fb] text-[#111827]">
-            {/* Header */}
-            <header className="border-b border-black/5 bg-white">
-                <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5">
-                    <h1 className="text-lg font-semibold">Quản trị hệ thống</h1>
-                    <Link href="/" className="text-sm text-blue-600">
-                        ← Về dashboard
-                    </Link>
-                </div>
-            </header>
-
-            {/* Content */}
-            <main className="mx-auto max-w-6xl p-6 space-y-6">
-                {/* Card */}
+        <AdminShell title="Quan tri he thong" subtitle="Cau hinh va giam sat he thong">
+            <main className="mx-auto max-w-6xl space-y-6">
                 <div className="rounded-2xl bg-white p-6 shadow-sm border">
-                    <h2 className="text-sm font-semibold mb-4">
-                        Cấu hình hệ thống
-                    </h2>
+                    <h2 className="text-sm font-semibold mb-4">Cau hinh he thong</h2>
 
                     <div className="grid md:grid-cols-2 gap-4">
                         <div>
@@ -46,11 +32,8 @@ export default function SystemPage() {
                     </button>
                 </div>
 
-                {/* Log */}
                 <div className="rounded-2xl bg-white p-6 shadow-sm border">
-                    <h2 className="text-sm font-semibold mb-4">
-                        Nhật ký hệ thống
-                    </h2>
+                    <h2 className="text-sm font-semibold mb-4">Nhat ky he thong</h2>
 
                     <table className="w-full text-sm">
                         <thead className="text-xs text-gray-500">
@@ -70,6 +53,6 @@ export default function SystemPage() {
                     </table>
                 </div>
             </main>
-        </div>
+        </AdminShell>
     );
 }

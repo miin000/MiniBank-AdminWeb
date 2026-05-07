@@ -1,14 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import {
     Search,
     Activity,
     Shield,
     AlertTriangle,
-    ArrowLeft,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import AdminShell from "../../components/admin-shell";
 
 type AuditType = "Giao dịch" | "Bảo mật" | "Cảnh báo";
 
@@ -200,29 +199,11 @@ export default function AuditPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6 md:p-8">
+        <AdminShell
+            title="Nhat ky he thong"
+            subtitle="Audit trail - Theo doi moi hoat dong trong he thong"
+        >
             <div className="mx-auto max-w-7xl">
-                {/* HEADER */}
-                <div className="mb-6">
-                    <div className="mb-3 flex items-center gap-3">
-                        <Link
-                            href="/"
-                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50 hover:text-black"
-                        >
-                            <ArrowLeft size={18} />
-                        </Link>
-
-                        <h1 className="text-[34px] font-bold leading-tight text-black md:text-[40px]">
-                            Nhật ký hệ thống
-                        </h1>
-                    </div>
-
-                    <p className="ml-12 text-[15px] font-normal text-gray-600 md:text-[16px]">
-                        Audit trail - Theo dõi mọi hoạt động trong hệ thống
-                    </p>
-                </div>
-
-                {/* FILTER */}
                 <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5">
                     <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
                         <div>
@@ -284,7 +265,6 @@ export default function AuditPage() {
                     </div>
                 </div>
 
-                {/* STATS */}
                 <div className="mb-6 grid grid-cols-1 gap-5 md:grid-cols-3">
                     <div className="rounded-2xl border border-gray-200 bg-white p-5">
                         <div className="flex items-center gap-4">
@@ -344,7 +324,6 @@ export default function AuditPage() {
                     </div>
                 </div>
 
-                {/* TABLE */}
                 <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
                     <div className="overflow-x-auto">
                         <table className="w-full min-w-[1400px] border-collapse">
@@ -466,6 +445,6 @@ export default function AuditPage() {
                     </div>
                 </div>
             </div>
-        </div>
+        </AdminShell>
     );
 }
