@@ -30,7 +30,14 @@ const navItems: NavItem[] = [
       { label: "Tai lieu khach hang", href: "/customers/documents" },
     ],
   },
-  { label: "Tai khoan & Giao dich", href: "/" },
+  {
+    label: "Tai khoan & Giao dich",
+    href: "#",
+    isDropdown: true,
+    subItems: [
+      { label: "Phan loai giao dich", href: "/transactions/classification" },
+    ],
+  },
   { label: "San pham tai chinh", href: "/" },
   { label: "Yeu cau thu tuc", href: "/" },
   { label: "Ho tro khach hang", href: "/" },
