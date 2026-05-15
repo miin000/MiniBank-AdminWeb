@@ -43,6 +43,15 @@ const navItems: NavItem[] = [
   { label: "Yeu cau thu tuc", href: "/" },
   { label: "Ho tro khach hang", href: "/" },
   {
+    label: "Hợp đồng",
+    href: "#",
+    isDropdown: true,
+    subItems: [
+      { label: "Mẫu hợp đồng", href: "/contracts" },
+      { label: "Hợp đồng đã gửi", href: "/contracts/list" },
+    ],
+  },
+  {
     label: "Quan tri he thong",
     href: "#",
     isDropdown: true,
