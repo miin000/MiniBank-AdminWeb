@@ -36,6 +36,7 @@ const navItems: NavItem[] = [
     isDropdown: true,
     subItems: [
       { label: "Phan loai giao dich", href: "/transactions/classification" },
+      { label: "GD lon cho duyet", href: "/transactions/large-approval" },
     ],
   },
   { label: "San pham tai chinh", href: "/" },
