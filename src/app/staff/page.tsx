@@ -333,107 +333,106 @@ export default function StaffPage() {
           </div>
         </div>
 
-          {error ? (
-            <div className="mt-4 rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">
-              {error}
-            </div>
-          ) : null}
+        {error ? (
+          <div className="mt-4 rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-black/5">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-zinc-50 text-xs text-zinc-500">
-            <tr>
-              <th className="px-4 py-3">ID</th>
-              <th className="px-4 py-3">Ho ten</th>
-              <th className="px-4 py-3">Email</th>
-              <th className="px-4 py-3">Vai tro</th>
-              <th className="px-4 py-3">Trang thai</th>
-              <th className="px-4 py-3">Ngay tao</th>
-              <th className="px-4 py-3">Hanh dong</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
+        <div className="mt-4 overflow-hidden rounded-xl border border-black/5">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-zinc-50 text-xs text-zinc-500">
               <tr>
-                <td className="px-4 py-6 text-center text-zinc-400" colSpan={7}>
-                  Dang tai...
-                </td>
+                <th className="px-4 py-3">ID</th>
+                <th className="px-4 py-3">Ho ten</th>
+                <th className="px-4 py-3">Email</th>
+                <th className="px-4 py-3">Vai tro</th>
+                <th className="px-4 py-3">Trang thai</th>
+                <th className="px-4 py-3">Ngay tao</th>
+                <th className="px-4 py-3">Hanh dong</th>
               </tr>
-            ) : staff.length === 0 ? (
-              <tr>
-                <td className="px-4 py-6 text-center text-zinc-400" colSpan={7}>
-                  Chua co tai khoan nao.
-                </td>
-              </tr>
-            ) : (
-              staff.map((item) => (
-                <tr key={item.id} className="border-t border-black/5 hover:bg-zinc-50/70">
-                  <td className="px-4 py-3 text-zinc-500">#{item.id}</td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium">{item.fullName}</div>
-                    <div className="text-xs text-zinc-400">{item.username}</div>
-                  </td>
-                  <td className="px-4 py-3 text-zinc-600">{item.email}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      {item.roles?.length ? (
-                        item.roles.map((role) => (
-                          <span
-                            key={role}
-                            className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-600"
-                          >
-                            {role}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-zinc-400">Không có</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs ${
-                        item.status?.toLowerCase() === "active"
-                          ? "bg-emerald-50 text-emerald-600"
-                          : "bg-rose-50 text-rose-600"
-                      }`}
-                    >
-                      {item.status?.toLowerCase() === "active" ? "Hoạt động" : "Đã khóa"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-zinc-500">
-                    {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "-"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <button
-                        className="text-sm font-medium text-blue-600 hover:text-blue-700"
-                        type="button"
-                        onClick={() => openPermissions(item)}
-                      >
-                        Phan quyen
-                      </button>
-                      <button
-                        className="text-sm font-medium text-zinc-600 hover:text-zinc-800 disabled:opacity-50"
-                        type="button"
-                        onClick={() => toggleStatus(item)}
-                        disabled={statusUpdatingId === item.id}
-                      >
-                        {statusUpdatingId === item.id
-                          ? "Dang cap nhat..."
-                          : item.status?.toLowerCase() === "active"
-                            ? "Khoa"
-                            : "Mo khoa"}
-                      </button>
-                    </div>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td className="px-4 py-6 text-center text-zinc-400" colSpan={7}>
+                    Dang tai...
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
+              ) : staff.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-6 text-center text-zinc-400" colSpan={7}>
+                    Chua co tai khoan nao.
+                  </td>
+                </tr>
+              ) : (
+                staff.map((item) => (
+                  <tr key={item.id} className="border-t border-black/5 hover:bg-zinc-50/70">
+                    <td className="px-4 py-3 text-zinc-500">#{item.id}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{item.fullName}</div>
+                      <div className="text-xs text-zinc-400">{item.username}</div>
+                    </td>
+                    <td className="px-4 py-3 text-zinc-600">{item.email}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        {item.roles?.length ? (
+                          item.roles.map((role) => (
+                            <span
+                              key={role}
+                              className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-600"
+                            >
+                              {role}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-zinc-400">Không có</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs ${item.status?.toLowerCase() === "active"
+                          ? "bg-emerald-50 text-emerald-600"
+                          : "bg-rose-50 text-rose-600"
+                          }`}
+                      >
+                        {item.status?.toLowerCase() === "active" ? "Hoạt động" : "Đã khóa"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-zinc-500">
+                      {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "-"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button
+                          className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                          type="button"
+                          onClick={() => openPermissions(item)}
+                        >
+                          Phan quyen
+                        </button>
+                        <button
+                          className="text-sm font-medium text-zinc-600 hover:text-zinc-800 disabled:opacity-50"
+                          type="button"
+                          onClick={() => toggleStatus(item)}
+                          disabled={statusUpdatingId === item.id}
+                        >
+                          {statusUpdatingId === item.id
+                            ? "Dang cap nhat..."
+                            : item.status?.toLowerCase() === "active"
+                              ? "Khoa"
+                              : "Mo khoa"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       {modalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">

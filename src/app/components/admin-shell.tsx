@@ -40,7 +40,16 @@ const navItems: NavItem[] = [
     ],
   },
   { label: "San pham tai chinh", href: "/" },
-  { label: "Yeu cau thu tuc", href: "/" },
+  {
+    label: "Yeu cau thu tuc",
+    href: "#",
+    isDropdown: true,
+    subItems: [
+      { label: "Tat ca yeu cau", href: "/requests" },
+      { label: "Yeu cau nang han muc", href: "/requests/limits" },
+      { label: "Yeu cau doi thong tin", href: "/requests/profile" },
+    ],
+  },
   { label: "Ho tro khach hang", href: "/" },
   {
     label: "Hợp đồng",
@@ -134,11 +143,10 @@ export default function AdminShell({
                     <Link
                       key={sub.label}
                       href={sub.href}
-                      className={`block rounded-lg px-3 py-2 text-sm transition ${
-                        pathname === sub.href
-                          ? "bg-blue-50 text-blue-700 font-bold"
-                          : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50"
-                      }`}
+                      className={`block rounded-lg px-3 py-2 text-sm transition ${pathname === sub.href
+                        ? "bg-blue-50 text-blue-700 font-bold"
+                        : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50"
+                        }`}
                     >
                       {sub.label}
                     </Link>
@@ -152,11 +160,10 @@ export default function AdminShell({
             <Link
               key={item.label}
               href={item.href}
-              className={`block rounded-xl px-3 py-2 text-sm transition ${
-                active
-                  ? "bg-blue-50 text-blue-700 font-bold"
-                  : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-800"
-              }`}
+              className={`block rounded-xl px-3 py-2 text-sm transition ${active
+                ? "bg-blue-50 text-blue-700 font-bold"
+                : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-800"
+                }`}
             >
               {item.label}
             </Link>
