@@ -39,7 +39,18 @@ const navItems: NavItem[] = [
       { label: "GD lon cho duyet", href: "/transactions/large-approval" },
     ],
   },
-  { label: "San pham tai chinh", href: "/" },
+  {
+    label: "San pham tai chinh",
+    href: "#",
+    isDropdown: true,
+    subItems: [
+      { label: "San pham tiet kiem", href: "/financial-products/savings" },
+      { label: "Bac lai suat tiet kiem", href: "/financial-products/savings/tiers" },
+      { label: "So tiet kiem", href: "/financial-products/savings/accounts" },
+      { label: "San pham vay", href: "/financial-products/loans" },
+      { label: "Bac lai suat vay", href: "/financial-products/loans/tiers" },
+    ],
+  },
   {
     label: "Yeu cau thu tuc",
     href: "#",
