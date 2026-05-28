@@ -50,7 +50,7 @@ const navItems: NavItem[] = [
       { label: "Yeu cau tat toan so", href: "/financial-products/savings/closure-requests" },
       { label: "San pham vay", href: "/financial-products/loans" },
       { label: "Bac lai suat vay", href: "/financial-products/loans/tiers" },
-      { label: "Ho so vay", href: "/financial-products/loans/ho-so-vay" },
+      { label: "Ho so vay", href: "/financial-products/loans/applications" },
     ],
   },
   {
