@@ -137,7 +137,7 @@ export default function ContractsPage() {
             try {
               const up = await fetch("/api/admin/documents/upload", { method: "POST", body: fd });
               const js = await up.json();
-              const tpl = { name: f.name, code: "TPL-" + Math.random().toString(36).substring(2,8).toUpperCase(), templateFileUrl: js.fileUrl };
+              const tpl = { name: f.name, code: "TPL-" + Math.random().toString(36).substring(2, 8).toUpperCase(), templateFileUrl: js.fileUrl };
               const created = await fetch("/api/admin/contracts/templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(tpl) });
               const t = await created.json();
               setTemplates((prev) => [t, ...prev]);
@@ -149,7 +149,7 @@ export default function ContractsPage() {
         >
           <div className="mt-3 grid grid-cols-3 gap-3">
             <input type="file" accept=".pdf,.doc,.docx" className="col-span-2" />
-            <button className="col-span-1 rounded bg-blue-600 px-3 py-2 text-white" disabled={uploading}>{uploading? 'Uploading...':'Upload'}</button>
+            <button className="col-span-1 rounded bg-blue-600 px-3 py-2 text-white" disabled={uploading}>{uploading ? 'Uploading...' : 'Upload'}</button>
           </div>
         </form>
       </div>

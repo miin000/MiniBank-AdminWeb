@@ -28,6 +28,7 @@ const navItems: NavItem[] = [
       { label: "Danh sach khach hang", href: "/customers" },
       { label: "Kiem duyet KYC", href: "/customers/kyc" },
       { label: "Tai lieu khach hang", href: "/customers/documents" },
+
     ],
   },
   {
@@ -35,8 +36,14 @@ const navItems: NavItem[] = [
     href: "#",
     isDropdown: true,
     subItems: [
+      { label: "Tai khoan ngan hang", href: "/transactions/bank-accounts" },
+      { label: "Giao dich", href: "/transactions/list" },
+      { label: "Bien dong so du", href: "/transactions/balance-fluctuations" },
+
       { label: "Phan loai giao dich", href: "/transactions/classification" },
       { label: "GD lon cho duyet", href: "/transactions/large-approval" },
+
+
     ],
   },
   {
@@ -51,6 +58,8 @@ const navItems: NavItem[] = [
       { label: "San pham vay", href: "/financial-products/loans" },
       { label: "Bac lai suat vay", href: "/financial-products/loans/tiers" },
       { label: "Ho so vay", href: "/financial-products/loans/applications" },
+      { label: "Khoan vay", href: "/financial-products/loans/contracts" },
+      { label: "Lich tra no", href: "/financial-products/loans/repayments" },
     ],
   },
   {
