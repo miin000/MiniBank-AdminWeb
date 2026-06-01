@@ -70,6 +70,8 @@ const navItems: NavItem[] = [
       { label: "Tat ca yeu cau", href: "/requests" },
       { label: "Yeu cau nang han muc", href: "/requests/limits" },
       { label: "Yeu cau doi thong tin", href: "/requests/profile" },
+      { label: "Duyet so tiet kiem", href: "/requests/saving-approval" },
+      { label: "Duyet vay von", href: "/requests/loans" },
     ],
   },
   { label: "Ho tro khach hang", href: "/" },
