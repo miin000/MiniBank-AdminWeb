@@ -71,7 +71,7 @@ const navItems: NavItem[] = [
       { label: "Yeu cau nang han muc", href: "/requests/limits" },
       { label: "Yeu cau doi thong tin", href: "/requests/profile" },
       { label: "Duyet so tiet kiem", href: "/requests/saving-approval" },
-      { label: "Duyet vay von", href: "/requests/loans" },
+      { label: "Duyet vay von", href: "/requests/loan-approval" },
     ],
   },
   { label: "Ho tro khach hang", href: "/" },
