@@ -1,58 +1,63 @@
 "use client";
 
+import Link from "next/link";
 import AdminShell from "../components/admin-shell";
 
 export default function SystemPage() {
-    return (
-        <AdminShell title="Quan tri he thong" subtitle="Cau hinh va giam sat he thong">
-            <main className="mx-auto max-w-6xl space-y-6">
-                <div className="rounded-2xl bg-white p-6 shadow-sm border">
-                    <h2 className="text-sm font-semibold mb-4">Cau hinh he thong</h2>
+  return (
+    <AdminShell title="Quản trị hệ thống" subtitle="Cấu hình vai trò, FAQ, mức duyệt và nhật ký">
+      <main className="mx-auto max-w-6xl space-y-6">
+        <section className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">System hub</p>
+              <h2 className="mt-2 text-2xl font-semibold text-[#111827]">Quản trị hệ thống</h2>
+              <p className="mt-2 max-w-2xl text-sm text-zinc-500">
+                Đi nhanh tới quản lý vai trò, FAQ chatbot, mức duyệt nghiệp vụ và nhật ký hệ thống.
+              </p>
+            </div>
+            <div className="rounded-2xl bg-blue-50 px-4 py-3 text-sm text-blue-800">
+              Mức duyệt áp dụng theo loại nghiệp vụ và ngưỡng tiền cho vay / tiết kiệm.
+            </div>
+          </div>
 
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-sm">Tên hệ thống</label>
-                            <input
-                                className="mt-1 w-full h-10 border rounded-lg px-3"
-                                placeholder="MiniBank Admin"
-                            />
-                        </div>
+          <div className="mt-6 grid gap-4 md:grid-cols-4">
+            <SystemLink href="/system/roles" title="Vai trò" text="Chuẩn hóa quyền theo 5 role MVP của MiniBank." />
+            <SystemLink href="/staff" title="Nhân viên" text="Tạo tài khoản, khóa/mở khóa và gán vai trò." />
+            <SystemLink href="/system/chatbot" title="FAQ / Chat CSKH" text="Quản lý cây hỏi đáp và luồng chat được chuyển cho CSKH." />
+            <SystemLink href="/system/approval-policies" title="Mức duyệt nghiệp vụ" text="Cấu hình số người duyệt theo ngưỡng tiền." accent />
+          </div>
+        </section>
 
-                        <div>
-                            <label className="text-sm">Email hỗ trợ</label>
-                            <input
-                                className="mt-1 w-full h-10 border rounded-lg px-3"
-                                placeholder="support@bank.vn"
-                            />
-                        </div>
-                    </div>
+        <section className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-semibold text-[#111827]">Lối tắt cấu hình</h3>
+              <p className="mt-1 text-sm text-zinc-500">RBAC nằm ở tab Vai trò; nhân viên chỉ được gán role để tránh lệch quyền.</p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold">
+              <Link href="/system/approval-policies" className="rounded-full bg-blue-600 px-3 py-2 text-white">Mức duyệt</Link>
+              <Link href="/system/roles" className="rounded-full border border-black/10 px-3 py-2 text-zinc-700">Vai trò</Link>
+              <Link href="/system/chatbot" className="rounded-full border border-black/10 px-3 py-2 text-zinc-700">FAQ</Link>
+              <Link href="/system/audit" className="rounded-full border border-black/10 px-3 py-2 text-zinc-700">Nhật ký</Link>
+            </div>
+          </div>
+        </section>
+      </main>
+    </AdminShell>
+  );
+}
 
-                    <button className="mt-4 h-10 px-4 bg-blue-600 text-white rounded-lg">
-                        Lưu cấu hình
-                    </button>
-                </div>
-
-                <div className="rounded-2xl bg-white p-6 shadow-sm border">
-                    <h2 className="text-sm font-semibold mb-4">Nhat ky he thong</h2>
-
-                    <table className="w-full text-sm">
-                        <thead className="text-xs text-gray-500">
-                            <tr>
-                                <th className="text-left py-2">Thời gian</th>
-                                <th className="text-left py-2">Hành động</th>
-                                <th className="text-left py-2">Người thực hiện</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr className="border-t">
-                                <td className="py-2">05/05/2026</td>
-                                <td>Cập nhật cấu hình</td>
-                                <td>admin</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </main>
-        </AdminShell>
-    );
+function SystemLink({ href, title, text, accent = false }: { href: string; title: string; text: string; accent?: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={`rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:shadow-md ${
+        accent ? "border-blue-200 bg-blue-50" : "border-black/5 bg-[#fcfcfd]"
+      }`}
+    >
+      <div className={`text-sm font-semibold ${accent ? "text-blue-800" : "text-[#111827]"}`}>{title}</div>
+      <div className={`mt-1 text-sm ${accent ? "text-blue-700/80" : "text-zinc-500"}`}>{text}</div>
+    </Link>
+  );
 }

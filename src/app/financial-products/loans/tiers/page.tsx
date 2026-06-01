@@ -121,9 +121,9 @@ export default function LoanInterestTierPage() {
     setToken(t);
   }, []);
 
-  const authHeader = useMemo(() => {
-    if (!token) return {};
-    return { Authorization: `Bearer ${token}` };
+  const authHeader = useMemo<HeadersInit>(() => {
+    if (!token) return {} as HeadersInit;
+    return { Authorization: `Bearer ${token}` } as HeadersInit;
   }, [token]);
 
   const fetchProducts = useCallback(async () => {

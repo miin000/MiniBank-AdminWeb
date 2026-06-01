@@ -9,25 +9,102 @@ type AdminUser = {
   type: string;
   username?: string | null;
   roles: string[];
+  permissions?: string[];
 };
 
 type NavItem = {
   label: string;
   href: string;
   isDropdown?: boolean;
-  subItems?: { label: string; href: string }[];
+  requiredRoles?: string[];
+  requiredPermissions?: string[];
+  subItems?: {
+    label: string;
+    href: string;
+    requiredRoles?: string[];
+    requiredPermissions?: string[];
+  }[];
 };
 
+const ADMIN_ONLY = ["ADMIN", "SUPER_ADMIN"];
+const STAFF_ACCESS = ["ADMIN", "SUPER_ADMIN", "STAFF"];
+const SERVICE_OFFICER_ACCESS = ["ADMIN", "SUPER_ADMIN", "SERVICE_OFFICER"];
+
+const PERMISSION_DASHBOARD = ["Xem dashboard", "Xem dash board"];
+const PERMISSION_KYC_VIEW = ["Xem hồ sơ KYC", "Xem ho so KYC"];
+const PERMISSION_SERVICE_REQUEST_VIEW = [
+  "Xem yêu cầu dịch vụ",
+  "Xem yeu cau dich vu",
+];
+const PERMISSION_SAVING_APPROVAL = [
+  "SAVING_APPROVAL",
+  "Duyệt tiết kiệm",
+  "Duyet tiet kiem",
+];
+const PERMISSION_LOAN_APPROVAL = [
+  "LOAN_APPLICATION_APPROVAL",
+  "Duyệt vay",
+  "Duyệt vay vốn",
+  "Duyet vay",
+  "Duyet vay von",
+];
+const PERMISSION_SYSTEM_LOG = ["Xem log hệ thống", "Xem log he thong"];
+
+function normalizePermission(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function hasAccess(user: AdminUser | null, item: Pick<NavItem, "requiredRoles" | "requiredPermissions">) {
+  if (!user) return true;
+  const roles = new Set((user.roles ?? []).map((role) => role.toUpperCase()));
+  if (roles.has("ADMIN") || roles.has("SUPER_ADMIN")) return true;
+
+  if (item.requiredRoles && item.requiredRoles.some((role) => roles.has(role.toUpperCase()))) {
+    return true;
+  }
+
+  if (item.requiredPermissions && item.requiredPermissions.length > 0) {
+    const permissions = new Set((user.permissions ?? []).map(normalizePermission));
+    return item.requiredPermissions.some((permission) =>
+      permissions.has(normalizePermission(permission))
+    );
+  }
+
+  return !item.requiredRoles && !item.requiredPermissions;
+}
+
 const navItems: NavItem[] = [
-  { label: "Dashboard", href: "/" },
+  {
+    label: "Dashboard",
+    href: "/",
+    requiredRoles: ADMIN_ONLY,
+    requiredPermissions: PERMISSION_DASHBOARD,
+  },
   {
     label: "Quan ly khach hang",
     href: "#",
     isDropdown: true,
     subItems: [
-      { label: "Danh sach khach hang", href: "/customers" },
-      { label: "Kiem duyet KYC", href: "/customers/kyc" },
-      { label: "Tai lieu khach hang", href: "/customers/documents" },
+      {
+        label: "Danh sach khach hang",
+        href: "/customers",
+        requiredRoles: ADMIN_ONLY,
+      },
+      {
+        label: "Kiem duyet KYC",
+        href: "/customers/kyc",
+        requiredRoles: ADMIN_ONLY,
+        requiredPermissions: PERMISSION_KYC_VIEW,
+      },
+      {
+        label: "Tai lieu khach hang",
+        href: "/customers/documents",
+        requiredRoles: ADMIN_ONLY,
+      },
     ],
   },
   {
@@ -35,8 +112,16 @@ const navItems: NavItem[] = [
     href: "#",
     isDropdown: true,
     subItems: [
-      { label: "Phan loai giao dich", href: "/transactions/classification" },
-      { label: "GD lon cho duyet", href: "/transactions/large-approval" },
+      {
+        label: "Phan loai giao dich",
+        href: "/transactions/classification",
+        requiredRoles: ADMIN_ONLY,
+      },
+      {
+        label: "GD lon cho duyet",
+        href: "/transactions/large-approval",
+        requiredRoles: ADMIN_ONLY,
+      },
     ],
   },
   {
@@ -44,11 +129,31 @@ const navItems: NavItem[] = [
     href: "#",
     isDropdown: true,
     subItems: [
-      { label: "San pham tiet kiem", href: "/financial-products/savings" },
-      { label: "Bac lai suat tiet kiem", href: "/financial-products/savings/tiers" },
-      { label: "So tiet kiem", href: "/financial-products/savings/accounts" },
-      { label: "San pham vay", href: "/financial-products/loans" },
-      { label: "Bac lai suat vay", href: "/financial-products/loans/tiers" },
+      {
+        label: "San pham tiet kiem",
+        href: "/financial-products/savings",
+        requiredRoles: STAFF_ACCESS,
+      },
+      {
+        label: "Bac lai suat tiet kiem",
+        href: "/financial-products/savings/tiers",
+        requiredRoles: STAFF_ACCESS,
+      },
+      {
+        label: "So tiet kiem",
+        href: "/financial-products/savings/accounts",
+        requiredRoles: SERVICE_OFFICER_ACCESS,
+      },
+      {
+        label: "San pham vay",
+        href: "/financial-products/loans",
+        requiredRoles: STAFF_ACCESS,
+      },
+      {
+        label: "Bac lai suat vay",
+        href: "/financial-products/loans/tiers",
+        requiredRoles: STAFF_ACCESS,
+      },
     ],
   },
   {
@@ -56,19 +161,53 @@ const navItems: NavItem[] = [
     href: "#",
     isDropdown: true,
     subItems: [
-      { label: "Tat ca yeu cau", href: "/requests" },
-      { label: "Yeu cau nang han muc", href: "/requests/limits" },
-      { label: "Yeu cau doi thong tin", href: "/requests/profile" },
+      {
+        label: "Tat ca yeu cau",
+        href: "/requests",
+        requiredRoles: ADMIN_ONLY,
+        requiredPermissions: PERMISSION_SERVICE_REQUEST_VIEW,
+      },
+      {
+        label: "Yeu cau nang han muc",
+        href: "/requests/limits",
+        requiredRoles: ADMIN_ONLY,
+        requiredPermissions: PERMISSION_SERVICE_REQUEST_VIEW,
+      },
+      {
+        label: "Yeu cau doi thong tin",
+        href: "/requests/profile",
+        requiredRoles: ADMIN_ONLY,
+        requiredPermissions: PERMISSION_SERVICE_REQUEST_VIEW,
+      },
+      {
+        label: "Duyet so tiet kiem",
+        href: "/requests/savings",
+        requiredRoles: ADMIN_ONLY,
+        requiredPermissions: PERMISSION_SAVING_APPROVAL,
+      },
+      {
+        label: "Duyet vay von",
+        href: "/requests/loans",
+        requiredRoles: ADMIN_ONLY,
+        requiredPermissions: PERMISSION_LOAN_APPROVAL,
+      },
     ],
   },
-  { label: "Ho tro khach hang", href: "/" },
   {
-    label: "Hợp đồng",
+    label: "Hợp đồng & thỏa thuận",
     href: "#",
     isDropdown: true,
     subItems: [
-      { label: "Mẫu hợp đồng", href: "/contracts" },
-      { label: "Hợp đồng đã gửi", href: "/contracts/list" },
+      {
+        label: "Template hợp đồng & thỏa thuận",
+        href: "/contracts",
+        requiredRoles: STAFF_ACCESS,
+      },
+      {
+        label: "Tài liệu đã sinh",
+        href: "/contracts/list",
+        requiredRoles: STAFF_ACCESS,
+      },
     ],
   },
   {
@@ -76,9 +215,32 @@ const navItems: NavItem[] = [
     href: "#",
     isDropdown: true,
     subItems: [
-      { label: "Nhan vien", href: "/staff" },
-      { label: "Vai tro", href: "/system/roles" },
-      { label: "Nhat ky he thong", href: "/system/audit" },
+      {
+        label: "Nhan vien",
+        href: "/staff",
+        requiredRoles: ADMIN_ONLY,
+      },
+      {
+        label: "Vai tro",
+        href: "/system/roles",
+        requiredRoles: ADMIN_ONLY,
+      },
+      {
+        label: "FAQ / Chat CSKH",
+        href: "/system/chatbot",
+        requiredRoles: ADMIN_ONLY,
+      },
+      {
+        label: "Muc duyet nghiep vu",
+        href: "/system/approval-policies",
+        requiredRoles: ADMIN_ONLY,
+      },
+      {
+        label: "Nhat ky he thong",
+        href: "/system/audit",
+        requiredRoles: ADMIN_ONLY,
+        requiredPermissions: PERMISSION_SYSTEM_LOG,
+      },
     ],
   },
 ];
@@ -142,6 +304,8 @@ export default function AdminShell({
             item.subItems?.some((sub) => pathname === sub.href);
 
           if (item.isDropdown) {
+            const visibleSubItems = item.subItems?.filter((sub) => hasAccess(user, sub)) ?? [];
+            if (!visibleSubItems.length) return null;
             return (
               <div key={item.label} className="flex flex-col gap-1">
                 <div className="flex items-center justify-between px-3 py-2 text-sm font-bold text-zinc-800">
@@ -150,7 +314,7 @@ export default function AdminShell({
                 </div>
 
                 <div className="ml-2 flex flex-col gap-1 border-l border-zinc-100 pl-3">
-                  {item.subItems?.map((sub) => (
+                  {visibleSubItems.map((sub) => (
                     <Link
                       key={sub.label}
                       href={sub.href}
@@ -166,6 +330,8 @@ export default function AdminShell({
               </div>
             );
           }
+
+          if (!hasAccess(user, item)) return null;
 
           return (
             <Link

@@ -13,6 +13,7 @@ type AuthResponse = {
     username?: string | null;
     phone?: string | null;
     roles: string[];
+    permissions?: string[];
   };
 };
 
