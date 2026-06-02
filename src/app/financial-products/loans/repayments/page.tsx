@@ -1,256 +1,244 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Search, ChevronDown, Calendar, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+/* eslint-disable react-hooks/set-state-in-effect */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertCircle, CheckCircle2, ChevronDown, Clock, Search } from "lucide-react";
 import AdminShell from "../../../components/admin-shell";
 
-// --- Interfaces định nghĩa dữ liệu ---
-interface RepaymentScheduleItem {
-    id: number;
-    periodText: string;     // Kỳ 1, Kỳ 2...
-    loanCode: string;       // Mã khoản vay (LOAN001)
-    customerName: string;   // Khách hàng
-    dueDate: string;        // Ngày đến hạn
-    principalAmount: number;// Tiền gốc
-    interestAmount: number; // Tiền lãi
-    totalAmount: number;    // Tổng phải trả
-    paidAmount: number;     // Đã trả
-    status: "DA_TRA" | "SAP_DEN_HAN" | "QUA_HAN";
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:8080"
+).replace(/\/+$/, "");
+
+type RepaymentScheduleItem = {
+  id: number;
+  loanId: number | null;
+  loanCode: string | null;
+  customerName: string | null;
+  installmentNo: number;
+  dueDate: string;
+  principalAmount: number;
+  interestAmount: number;
+  penaltyAmount: number;
+  feeAmount: number;
+  totalAmount: number;
+  paidAmount: number;
+  status: string;
+  paidAt: string | null;
+};
+
+const statusOptions = [
+  { value: "ALL", label: "Tat ca trang thai" },
+  { value: "upcoming", label: "Sap den han" },
+  { value: "paid", label: "Da tra" },
+  { value: "overdue", label: "Qua han" },
+  { value: "unpaid", label: "Chua tra" },
+];
+
+function formatVND(value: number | null | undefined) {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(value ?? 0);
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("vi-VN");
+}
+
+function isPaid(item: RepaymentScheduleItem) {
+  return item.status?.toLowerCase() === "paid";
+}
+
+function isOverdue(item: RepaymentScheduleItem) {
+  if (isPaid(item)) return false;
+  const date = new Date(item.dueDate);
+  return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
+}
+
+function isUpcoming(item: RepaymentScheduleItem) {
+  if (isPaid(item)) return false;
+  const date = new Date(item.dueDate);
+  if (Number.isNaN(date.getTime())) return false;
+  const diff = date.getTime() - Date.now();
+  return diff >= 0 && diff <= 7 * 24 * 60 * 60 * 1000;
+}
+
+function StatusBadge({ item }: { item: RepaymentScheduleItem }) {
+  if (isPaid(item)) {
+    return <span className="inline-flex items-center gap-1 rounded border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600"><CheckCircle2 size={12} />Da tra</span>;
+  }
+  if (isOverdue(item)) {
+    return <span className="inline-flex items-center gap-1 rounded border border-red-100 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600"><AlertCircle size={12} />Qua han</span>;
+  }
+  if (isUpcoming(item)) {
+    return <span className="inline-flex items-center gap-1 rounded border border-blue-100 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600"><Clock size={12} />Sap den han</span>;
+  }
+  return <span className="inline-flex items-center rounded border border-gray-100 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600">Chua tra</span>;
 }
 
 export default function LoanRepaymentPage() {
-    // --- States ---
-    const [schedules, setSchedules] = useState<RepaymentScheduleItem[]>([]);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [statusFilter, setStatusFilter] = useState<string>("ALL");
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(null);
+  const [schedules, setSchedules] = useState<RepaymentScheduleItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-    // --- Mock Data chuẩn theo đúng hình ảnh Figma ---
-    useEffect(() => {
-        const mockData: RepaymentScheduleItem[] = [
-            {
-                id: 1,
-                periodText: "Kỳ 1",
-                loanCode: "LOAN001",
-                customerName: "Nguyễn Văn A",
-                dueDate: "15/05/2026",
-                principalAmount: 2083333,
-                interestAmount: 520833,
-                totalAmount: 2604166,
-                paidAmount: 2604166,
-                status: "DA_TRA",
-            },
-            {
-                id: 2,
-                periodText: "Kỳ 2",
-                loanCode: "LOAN001",
-                customerName: "Nguyễn Văn A",
-                dueDate: "15/06/2026",
-                principalAmount: 2083333,
-                interestAmount: 498858,
-                totalAmount: 2582201,
-                paidAmount: 0,
-                status: "SAP_DEN_HAN",
-            },
-            {
-                id: 3,
-                periodText: "Kỳ 1",
-                loanCode: "LOAN002",
-                customerName: "Lê Văn C",
-                dueDate: "20/04/2026",
-                principalAmount: 5555556,
-                interestAmount: 1800000,
-                totalAmount: 7355556,
-                paidAmount: 0,
-                status: "QUA_HAN",
-            },
-            {
-                id: 4,
-                periodText: "Kỳ 2",
-                loanCode: "LOAN002",
-                customerName: "Lê Văn C",
-                dueDate: "20/05/2026",
-                principalAmount: 5555556,
-                interestAmount: 1740000,
-                totalAmount: 7295556,
-                paidAmount: 0,
-                status: "SAP_DEN_HAN",
-            },
-        ];
+  useEffect(() => {
+    setToken(localStorage.getItem("adminToken"));
+  }, []);
 
-        setSchedules(mockData);
-        setLoading(false);
-    }, []);
+  const fetchSchedules = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/loans/repayment-schedules`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) throw new Error((await res.text()) || "Load failed");
+      setSchedules((await res.json()) as RepaymentScheduleItem[]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Load failed");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
-    // --- Bộ lọc và Tìm kiếm ---
-    const filteredSchedules = schedules.filter((item) => {
-        const matchesSearch =
-            item.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.loanCode.toLowerCase().includes(searchQuery.toLowerCase());
+  useEffect(() => {
+    fetchSchedules();
+  }, [fetchSchedules]);
 
-        const matchesStatus = statusFilter === "ALL" || item.status === statusFilter;
-
-        return matchesSearch && matchesStatus;
+  const filteredSchedules = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return schedules.filter((item) => {
+      const matchesSearch = !query || [item.customerName, item.loanCode]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(query));
+      const matchesStatus =
+        statusFilter === "ALL" ||
+        (statusFilter === "paid" && isPaid(item)) ||
+        (statusFilter === "overdue" && isOverdue(item)) ||
+        (statusFilter === "upcoming" && isUpcoming(item)) ||
+        (statusFilter === "unpaid" && !isPaid(item));
+      return matchesSearch && matchesStatus;
     });
+  }, [schedules, searchQuery, statusFilter]);
 
-    // --- Tính toán tổng số lượng theo trạng thái thẻ Widget ---
-    const totalPeriods = schedules.length;
-    const upcomingCount = schedules.filter((s) => s.status === "SAP_DEN_HAN").length;
-    const paidCount = schedules.filter((s) => s.status === "DA_TRA").length;
-    const overdueCount = schedules.filter((s) => s.status === "QUA_HAN").length;
+  const totalPeriods = schedules.length;
+  const upcomingCount = schedules.filter(isUpcoming).length;
+  const paidCount = schedules.filter(isPaid).length;
+  const overdueCount = schedules.filter(isOverdue).length;
 
-    const formatVND = (value: number) => {
-        return new Intl.NumberFormat("vi-VN", {
-            style: "currency",
-            currency: "VND",
-        }).format(value).replace("₫", "đ");
-    };
-
-    const statusOptions = [
-        { value: "ALL", label: "Tất cả trạng thái" },
-        { value: "SAP_DEN_HAN", label: "Sắp đến hạn" },
-        { value: "DA_TRA", label: "Đã trả" },
-        { value: "QUA_HAN", label: "Quá hạn" },
-    ];
-
+  if (!token) {
     return (
-        <AdminShell
-            title="Lịch trả nợ"
-            subtitle="Theo dõi lịch trả nợ của tất cả các khoản vay"
-        >
-            <div className="space-y-6 font-sans">
-
-                {/* --- Bộ lọc thanh tìm kiếm và Combobox --- */}
-                <div className="flex flex-col md:flex-row gap-4 justify-between items-end md:items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                    <div className="w-full md:w-2/3">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                            <input
-                                type="text"
-                                placeholder="Tìm theo tên KH, mã khoản vay..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-gray-400"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="w-full md:w-56 relative">
-                        <button
-                            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                            className="w-full flex items-center justify-between px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm text-gray-700 hover:bg-gray-50 text-left focus:outline-none"
-                        >
-                            <span>{statusOptions.find((o) => o.value === statusFilter)?.label}</span>
-                            <ChevronDown size={16} className={`text-gray-400 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
-                        </button>
-
-                        {isDropdownOpen && (
-                            <div className="absolute right-0 top-full mt-1 w-full bg-white border border-gray-100 rounded-lg shadow-xl z-50 py-1 overflow-hidden">
-                                {statusOptions.map((o) => (
-                                    <button
-                                        key={o.value}
-                                        onClick={() => {
-                                            setStatusFilter(o.value);
-                                            setIsDropdownOpen(false);
-                                        }}
-                                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${statusFilter === o.value ? "bg-pink-100 text-pink-700 font-medium" : "text-gray-700 hover:bg-gray-50"
-                                            }`}
-                                    >
-                                        {o.label}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* --- Bảng dữ liệu chính --- */}
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                    {/* Sub-Header Widgets inside Table */}
-                    <div className="grid grid-cols-4 border-b border-gray-100 bg-gray-50/50 p-4 text-center text-xs font-semibold text-gray-500">
-                        <div className="border-r border-gray-100 last:border-0">
-                            <p>Tổng số kỳ</p>
-                            <p className="text-sm font-bold text-gray-900 mt-1">{totalPeriods}</p>
-                        </div>
-                        <div className="border-r border-gray-100 last:border-0">
-                            <p className="text-blue-600">Sắp đến hạn</p>
-                            <p className="text-sm font-bold text-blue-600 mt-1">{upcomingCount}</p>
-                        </div>
-                        <div className="border-r border-gray-100 last:border-0">
-                            <p className="text-emerald-600">Đã trả</p>
-                            <p className="text-sm font-bold text-emerald-600 mt-1">{paidCount}</p>
-                        </div>
-                        <div className="last:border-0">
-                            <p className="text-red-600">Quá hạn</p>
-                            <p className="text-sm font-bold text-red-600 mt-1">{overdueCount}</p>
-                        </div>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 text-xs font-semibold uppercase">
-                                    <th className="px-4 py-3.5">Kỳ</th>
-                                    <th className="px-4 py-3.5">Mã khoản vay</th>
-                                    <th className="px-4 py-3.5">Khách hàng</th>
-                                    <th className="px-4 py-3.5">Ngày đến hạn</th>
-                                    <th className="px-4 py-3.5 text-right">Tiền gốc</th>
-                                    <th className="px-4 py-3.5 text-right">Tiền lãi</th>
-                                    <th className="px-4 py-3.5 text-right">Tổng phải trả</th>
-                                    <th className="px-4 py-3.5 text-right">Đã trả</th>
-                                    <th className="px-4 py-3.5 text-center">Trạng thái</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
-                                {loading ? (
-                                    <tr><td colSpan={9} className="text-center py-8 text-gray-400">Đang tải...</td></tr>
-                                ) : filteredSchedules.map((row) => (
-                                    <tr key={row.id} className="hover:bg-gray-50/50 transition-colors">
-                                        <td className="px-4 py-4 font-medium text-gray-900">{row.periodText}</td>
-                                        <td className="px-4 py-4 text-blue-600 font-semibold hover:underline cursor-pointer">{row.loanCode}</td>
-                                        <td className="px-4 py-4">
-                                            <div className="flex items-center gap-2">
-                                                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-600">
-                                                    {row.customerName[0]}
-                                                </div>
-                                                <span className="font-medium text-gray-900">{row.customerName}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-4 text-gray-600">{row.dueDate}</td>
-                                        <td className="px-4 py-4 text-right font-medium">{formatVND(row.principalAmount)}</td>
-                                        <td className="px-4 py-4 text-right font-medium">{formatVND(row.interestAmount)}</td>
-                                        <td className="px-4 py-4 text-right font-semibold text-gray-900">{formatVND(row.totalAmount)}</td>
-                                        <td className="px-4 py-4 text-right font-semibold text-emerald-600">
-                                            {row.paidAmount > 0 ? formatVND(row.paidAmount) : "0 đ"}
-                                        </td>
-                                        <td className="px-4 py-4 text-center">
-                                            <div className="flex justify-center">
-                                                {row.status === "DA_TRA" && (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded bg-emerald-50 text-emerald-600 border border-emerald-100">
-                                                        <CheckCircle2 size={12} /> Đã trả
-                                                    </span>
-                                                )}
-                                                {row.status === "SAP_DEN_HAN" && (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded bg-blue-50 text-blue-600 border border-blue-100">
-                                                        <Clock size={12} /> Sắp đến hạn
-                                                    </span>
-                                                )}
-                                                {row.status === "QUA_HAN" && (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded bg-red-50 text-red-600 border border-red-100">
-                                                        <AlertCircle size={12} /> Quá hạn
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-            </div>
-        </AdminShell>
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f7fb] px-6">
+        <div className="rounded-xl bg-white p-6 text-sm text-gray-600">Vui long dang nhap de tiep tuc.</div>
+      </div>
     );
+  }
+
+  return (
+    <AdminShell title="Lich tra no" subtitle="Theo doi lich tra no cua tat ca cac khoan vay">
+      <div className="space-y-6 font-sans">
+        <div className="flex flex-col items-end justify-between gap-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm md:flex-row md:items-center">
+          <div className="w-full md:w-2/3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input
+                type="text"
+                placeholder="Tim theo ten KH, ma khoan vay..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 bg-gray-50/50 py-2 pl-9 pr-4 text-sm outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+          <div className="relative w-full md:w-56">
+            <button
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm text-gray-700"
+              type="button"
+            >
+              <span>{statusOptions.find((item) => item.value === statusFilter)?.label}</span>
+              <ChevronDown size={16} className={`text-gray-400 ${isDropdownOpen ? "rotate-180" : ""}`} />
+            </button>
+            {isDropdownOpen ? (
+              <div className="absolute right-0 top-full z-50 mt-1 w-full overflow-hidden rounded-lg border border-gray-100 bg-white py-1 shadow-xl">
+                {statusOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => { setStatusFilter(option.value); setIsDropdownOpen(false); }}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {error ? <div className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+
+        <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+          <div className="grid grid-cols-4 border-b border-gray-100 bg-gray-50/50 p-4 text-center text-xs font-semibold text-gray-500">
+            <div className="border-r border-gray-100"><p>Tong so ky</p><p className="mt-1 text-sm font-bold text-gray-900">{totalPeriods}</p></div>
+            <div className="border-r border-gray-100"><p className="text-blue-600">Sap den han</p><p className="mt-1 text-sm font-bold text-blue-600">{upcomingCount}</p></div>
+            <div className="border-r border-gray-100"><p className="text-emerald-600">Da tra</p><p className="mt-1 text-sm font-bold text-emerald-600">{paidCount}</p></div>
+            <div><p className="text-red-600">Qua han</p><p className="mt-1 text-sm font-bold text-red-600">{overdueCount}</p></div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50 text-xs font-semibold uppercase text-gray-500">
+                  <th className="px-4 py-3.5">Ky</th>
+                  <th className="px-4 py-3.5">Ma khoan vay</th>
+                  <th className="px-4 py-3.5">Khach hang</th>
+                  <th className="px-4 py-3.5">Ngay den han</th>
+                  <th className="px-4 py-3.5 text-right">Tien goc</th>
+                  <th className="px-4 py-3.5 text-right">Tien lai</th>
+                  <th className="px-4 py-3.5 text-right">Tong phai tra</th>
+                  <th className="px-4 py-3.5 text-right">Da tra</th>
+                  <th className="px-4 py-3.5 text-center">Trang thai</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
+                {loading ? (
+                  <tr><td colSpan={9} className="py-8 text-center text-gray-400">Dang tai...</td></tr>
+                ) : filteredSchedules.length === 0 ? (
+                  <tr><td colSpan={9} className="py-8 text-center text-gray-400">Khong co lich tra no phu hop</td></tr>
+                ) : filteredSchedules.map((row) => (
+                  <tr key={row.id} className="transition-colors hover:bg-gray-50/50">
+                    <td className="px-4 py-4 font-medium text-gray-900">Ky {row.installmentNo}</td>
+                    <td className="px-4 py-4 font-semibold text-blue-600">{row.loanCode ?? "-"}</td>
+                    <td className="px-4 py-4 font-medium text-gray-900">{row.customerName ?? "-"}</td>
+                    <td className="px-4 py-4 text-gray-600">{formatDate(row.dueDate)}</td>
+                    <td className="px-4 py-4 text-right font-medium">{formatVND(row.principalAmount)}</td>
+                    <td className="px-4 py-4 text-right font-medium">{formatVND(row.interestAmount)}</td>
+                    <td className="px-4 py-4 text-right font-semibold text-gray-900">{formatVND(row.totalAmount)}</td>
+                    <td className="px-4 py-4 text-right font-semibold text-emerald-600">{formatVND(row.paidAmount)}</td>
+                    <td className="px-4 py-4 text-center"><StatusBadge item={row} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </AdminShell>
+  );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminShell from "../../../components/admin-shell";
 
@@ -40,6 +42,7 @@ type SavingDetail = {
   agreementVersion: string | null;
   sourceAccountNumber: string | null;
   sourceAccountName: string | null;
+  settlementAccountId: number | null;
   settlementAccountNumber: string | null;
   settlementAccountName: string | null;
   productCode: string | null;
@@ -151,7 +154,7 @@ export default function SavingAccountsPage() {
   }, []);
 
   const authHeader = useMemo(() => {
-    if (!token) return {};
+    if (!token) return {} as Record<string, string>;
     return { Authorization: `Bearer ${token}` };
   }, [token]);
 
@@ -300,6 +303,37 @@ export default function SavingAccountsPage() {
       await fetchDetail(detail.id);
     } catch (err) {
       setDetailError(err instanceof Error ? err.message : "Reject failed");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function closeSaving() {
+    if (!detail) return;
+    const confirmed = window.confirm("Xac nhan tat toan so tiet kiem nay?");
+    if (!confirmed) return;
+    setActionLoading(true);
+    setDetailError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/savings/${detail.id}/close`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeader,
+        },
+        body: JSON.stringify({
+          settlementAccountId: detail.settlementAccountId,
+          note: "Admin manual saving closure",
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Close failed");
+      }
+      await fetchSavings();
+      await fetchDetail(detail.id);
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "Close failed");
     } finally {
       setActionLoading(false);
     }
@@ -611,6 +645,25 @@ export default function SavingAccountsPage() {
                           {actionLoading ? "Dang xu ly..." : "Phe duyet"}
                         </button>
                       </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {detail.status?.toLowerCase() === "active" ? (
+                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                    <div className="text-xs text-blue-700">Tat toan so tiet kiem thu cong</div>
+                    <div className="mt-2 text-xs text-blue-700">
+                      Tien goc va lai ghi nhan se duoc cong ve tai khoan nhan cua khach hang.
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        className="h-10 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white disabled:opacity-60"
+                        type="button"
+                        onClick={closeSaving}
+                        disabled={actionLoading}
+                      >
+                        {actionLoading ? "Dang xu ly..." : "Tat toan"}
+                      </button>
                     </div>
                   </div>
                 ) : null}

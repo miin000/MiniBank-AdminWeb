@@ -1,31 +1,62 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import AdminShell from "./components/admin-shell";
 
-type AdminUser = {
-  id: number;
-  type: string;
-  username?: string | null;
-  roles: string[];
+type DashboardMetric = {
+  key: string;
+  label: string;
+  value: number | string;
+  valueType: "number" | "money" | string;
+  delta?: string | null;
+  tone: string;
+  href?: string | null;
 };
 
-const stats = [
-  { label: "Tong so khach hang", value: "12,458", delta: "+245 trong thang", tone: "blue" },
-  { label: "Cho KYC", value: "47", delta: "Can xu ly", tone: "amber", href: "/customers/kyc" },
-  { label: "Tai khoan dang hoat dong", value: "18,234", delta: "+312 hom nay", tone: "green" },
-  { label: "GD trong ngay", value: "1,847", delta: "+2.31% so voi hom qua", tone: "indigo" },
-  { label: "Tong tien GD hom nay", value: "d125.4B", delta: "+1.5% so voi hom qua", tone: "emerald" },
-  { label: "So TK dang mo", value: "3,421", delta: "142 sap doi han", tone: "purple" },
+type TimePoint = {
+  label: string;
+  value: number | string;
+};
 
-  // Điều chỉnh thêm thuộc tính href trỏ tới phần quản lý sản phẩm khoản vay vừa tạo
-  { label: "Khoan vay dang hoat dong", value: "892", delta: "45 sap den han", tone: "orange", href: "/loans/products" },
+type ProductMetric = {
+  label: string;
+  value: number | string;
+};
 
-  { label: "Ho so vay cho duyet", value: "63", delta: "12 uu tien cao", tone: "rose" },
-  { label: "Yeu cau tu ho tro", value: "128", delta: "28 uu tien cao", tone: "teal" },
-  { label: "Chat dang cho NV", value: "15", delta: "Thoi gian cho TB 3 phut", tone: "cyan" },
-];
+type RecentTransaction = {
+  id: number;
+  transactionCode: string;
+  accountName?: string | null;
+  description?: string | null;
+  amount: number | string;
+  direction: "in" | "out" | string;
+  transactionType: string;
+  status: string;
+  createdAt: string;
+};
+
+type RequestMetric = {
+  label: string;
+  value: number;
+  href: string;
+};
+
+type DashboardResponse = {
+  updatedAt: string;
+  metrics: DashboardMetric[];
+  transactionCountSeries: TimePoint[];
+  transactionAmountSeries: TimePoint[];
+  productPerformance: ProductMetric[];
+  recentTransactions: RecentTransaction[];
+  pendingRequests: RequestMetric[];
+};
+
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:8080"
+).replace(/\/+$/, "");
 
 const toneStyles: Record<string, string> = {
   blue: "bg-blue-50 text-blue-600",
@@ -40,75 +71,116 @@ const toneStyles: Record<string, string> = {
   cyan: "bg-cyan-50 text-cyan-600",
 };
 
-const lineSeries = [
-  { label: "00:00", value: 120 },
-  { label: "04:00", value: 80 },
-  { label: "08:00", value: 260 },
-  { label: "12:00", value: 380 },
-  { label: "16:00", value: 320 },
-  { label: "20:00", value: 240 },
-  { label: "23:59", value: 140 },
-];
-
-const lineValueSeries = [
-  { label: "00:00", value: 8 },
-  { label: "04:00", value: 6 },
-  { label: "08:00", value: 18 },
-  { label: "12:00", value: 30 },
-  { label: "16:00", value: 26 },
-  { label: "20:00", value: 18 },
-  { label: "23:59", value: 12 },
-];
-
-const barSeries = [
-  { label: "Tiet kiem", value: 42 },
-  { label: "Vay von", value: 78 },
-  { label: "Thanh toan", value: 24 },
-];
-
 function buildLinePath(values: number[], width: number, height: number) {
   const max = Math.max(...values, 1);
   const min = Math.min(...values, 0);
   const span = max - min || 1;
   return values
     .map((value, index) => {
-      const x = (index / (values.length - 1)) * width;
+      const x = values.length === 1 ? 0 : (index / (values.length - 1)) * width;
       const y = height - ((value - min) / span) * height;
       return `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
     })
     .join(" ");
 }
 
+function toNumber(value: number | string | null | undefined) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatMetricValue(metric: DashboardMetric) {
+  const value = toNumber(metric.value);
+  if (metric.valueType === "money") {
+    if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}B VND`;
+    if (value >= 1_000_000) return `${(value / 1_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}M VND`;
+    return formatVnd(value);
+  }
+  return new Intl.NumberFormat("vi-VN").format(value);
+}
+
+function formatVnd(value: number) {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatUpdatedAt(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `Cap nhat luc ${date.toLocaleString("vi-VN")}`;
+}
+
+function subscribeToken(onStoreChange: () => void) {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener("admin-token-change", onStoreChange);
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener("admin-token-change", onStoreChange);
+  };
+}
+
+function getTokenSnapshot() {
+  return typeof window === "undefined" ? null : localStorage.getItem("adminToken");
+}
+
+function getServerTokenSnapshot() {
+  return null;
+}
+
 export default function Home() {
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<AdminUser | null>(null);
+  const token = useSyncExternalStore(subscribeToken, getTokenSnapshot, getServerTokenSnapshot);
+  const [data, setData] = useState<DashboardResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const t = localStorage.getItem("adminToken");
-    setToken(t);
-    const u = localStorage.getItem("adminUser");
-    if (u) {
+    if (!token) return;
+    let cancelled = false;
+    const loadDashboard = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        setUser(JSON.parse(u));
-      } catch {
-        setUser(null);
+        const res = await fetch(`${API_BASE}/api/admin/dashboard`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error((await res.text()) || "Khong the tai dashboard");
+        const json = (await res.json()) as DashboardResponse;
+        if (!cancelled) setData(json);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Khong the tai dashboard");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    }
-  }, []);
+    };
+    loadDashboard();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const countSeries = useMemo(() => data?.transactionCountSeries ?? [], [data]);
+  const amountSeries = useMemo(() => data?.transactionAmountSeries ?? [], [data]);
+  const countValues = countSeries.map((item) => toNumber(item.value));
+  const amountValues = amountSeries.map((item) => toNumber(item.value));
+  const linePath = buildLinePath(countValues.length ? countValues : [0], 520, 160);
+  const lineValuePath = buildLinePath(amountValues.length ? amountValues : [0], 520, 160);
+  const countLabels = countSeries.filter((_, index) => index % 4 === 0 || index === countSeries.length - 1);
+  const amountLabels = amountSeries.filter((_, index) => index % 4 === 0 || index === amountSeries.length - 1);
+  const maxProduct = Math.max(...(data?.productPerformance ?? []).map((item) => toNumber(item.value)), 1);
 
   if (!token) {
     return (
       <div className="flex flex-1 items-center justify-center bg-background px-6">
         <main className="w-full max-w-md rounded-2xl border border-black/[.08] bg-background p-6 dark:border-white/[.145]">
           <h1 className="text-2xl font-semibold tracking-tight">MiniBank Admin</h1>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            Vui long dang nhap de tiep tuc.
-          </p>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Vui long dang nhap de tiep tuc.</p>
           <div className="mt-6 flex flex-col gap-3">
-            <Link
-              className="flex h-11 items-center justify-center rounded-lg bg-foreground text-background"
-              href="/login"
-            >
+            <Link className="flex h-11 items-center justify-center rounded-lg bg-foreground text-background" href="/login">
               Di toi dang nhap
             </Link>
           </div>
@@ -117,63 +189,39 @@ export default function Home() {
     );
   }
 
-  const linePath = buildLinePath(lineSeries.map((item) => item.value), 520, 160);
-  const lineValuePath = buildLinePath(
-    lineValueSeries.map((item) => item.value),
-    520,
-    160
-  );
-
   return (
     <AdminShell
       title="Dashboard Tong quan"
-      subtitle="Cap nhat luc 14:35 30/04/2026"
+      subtitle={data ? formatUpdatedAt(data.updatedAt) : loading ? "Dang cap nhat du lieu..." : "Du lieu tu database"}
       onLogout={() => {
-        setToken(null);
-        setUser(null);
+        window.dispatchEvent(new Event("admin-token-change"));
       }}
     >
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {stats.map((item) => {
-          // Tự động kiểm tra nếu có trường href thì render dạng Link click được
-          const hasLink = !!item.href;
-          const cardClassName = `rounded-2xl border border-black/5 bg-white p-4 shadow-sm text-left ${hasLink ? "cursor-pointer hover:shadow-md transition-all hover:-translate-y-0.5" : ""
-            }`;
+      {error ? <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
 
-          const CardContent = (
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {(data?.metrics ?? []).map((item) => {
+          const cardClassName = `rounded-2xl border border-black/5 bg-white p-4 text-left shadow-sm ${item.href ? "cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md" : ""}`;
+          const content = (
             <>
               <div className="flex items-center justify-between">
                 <div className="text-xs text-zinc-500">{item.label}</div>
-                <span
-                  className={`flex h-8 w-8 items-center justify-center rounded-xl text-xs ${toneStyles[item.tone] ?? "bg-zinc-100 text-zinc-600"
-                    }`}
-                >
-                  ●
-                </span>
+                <span className={`flex h-8 w-8 items-center justify-center rounded-xl text-xs ${toneStyles[item.tone] ?? "bg-zinc-100 text-zinc-600"}`}>●</span>
               </div>
-              <div className="mt-3 text-2xl font-semibold">{item.value}</div>
-              <div className="mt-1 text-xs text-zinc-500">{item.delta}</div>
+              <div className="mt-3 text-2xl font-semibold">{formatMetricValue(item)}</div>
+              <div className="mt-1 text-xs text-zinc-500">{item.delta || "Du lieu hien tai"}</div>
             </>
           );
-
-          if (hasLink && item.href) {
-            return (
-              <Link key={item.label} href={item.href} className={cardClassName}>
-                {CardContent}
-              </Link>
-            );
-          }
-
-          return (
-            <div key={item.label} className={cardClassName}>
-              {CardContent}
-            </div>
+          return item.href ? (
+            <Link key={item.key} href={item.href} className={cardClassName}>{content}</Link>
+          ) : (
+            <div key={item.key} className={cardClassName}>{content}</div>
           );
         })}
+        {loading && !data ? <div className="rounded-2xl border border-black/5 bg-white p-4 text-sm text-zinc-500 shadow-sm">Dang tai KPI...</div> : null}
       </section>
 
-      {/* --- Giữ nguyên các Section biểu đồ và thông báo phía dưới --- */}
-      <section className="grid gap-6 xl:grid-cols-2 mt-6">
+      <section className="mt-6 grid gap-6 xl:grid-cols-2">
         <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
           <div className="text-sm font-semibold">Giao dich theo thoi gian</div>
           <div className="text-xs text-zinc-500">So luong giao dich trong ngay</div>
@@ -189,14 +237,14 @@ export default function Home() {
               <path d={linePath} fill="none" stroke="#3b82f6" strokeWidth="3" />
             </svg>
             <div className="mt-2 flex justify-between text-xs text-zinc-400">
-              {lineSeries.map((item) => <span key={item.label}>{item.label}</span>)}
+              {countLabels.map((item) => <span key={item.label}>{item.label}</span>)}
             </div>
           </div>
         </div>
 
         <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
           <div className="text-sm font-semibold">Gia tri giao dich theo thoi gian</div>
-          <div className="text-xs text-zinc-500">Tong tien giao dich (ty VND)</div>
+          <div className="text-xs text-zinc-500">Tong tien giao dich (trieu VND)</div>
           <div className="mt-4 h-48">
             <svg viewBox="0 0 520 180" className="h-full w-full">
               <defs>
@@ -209,52 +257,64 @@ export default function Home() {
               <path d={lineValuePath} fill="none" stroke="#10b981" strokeWidth="3" />
             </svg>
             <div className="mt-2 flex justify-between text-xs text-zinc-400">
-              {lineValueSeries.map((item) => <span key={item.label}>{item.label}</span>)}
+              {amountLabels.map((item) => <span key={item.label}>{item.label}</span>)}
             </div>
           </div>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm mt-6">
+      <section className="mt-6 rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
         <div className="text-sm font-semibold">Hieu suat san pham</div>
-        <div className="text-xs text-zinc-500">Doanh thu theo san pham (ty VND)</div>
+        <div className="text-xs text-zinc-500">Gia tri theo san pham (ty VND)</div>
         <div className="mt-6 grid gap-6 md:grid-cols-3">
-          {barSeries.map((item) => (
-            <div key={item.label} className="flex flex-col items-center gap-3">
-              <div className="flex h-28 w-full items-end rounded-xl bg-zinc-100">
-                <div className="w-full rounded-xl bg-blue-500" style={{ height: `${item.value}%` }} />
+          {(data?.productPerformance ?? []).map((item) => {
+            const value = toNumber(item.value);
+            return (
+              <div key={item.label} className="flex flex-col items-center gap-3">
+                <div className="flex h-28 w-full items-end rounded-xl bg-zinc-100">
+                  <div className="w-full rounded-xl bg-blue-500" style={{ height: `${Math.max(6, (value / maxProduct) * 100)}%` }} />
+                </div>
+                <div className="text-xs text-zinc-500">{item.label}: {value.toLocaleString("vi-VN")}</div>
               </div>
-              <div className="text-xs text-zinc-500">{item.label}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-3 mt-6">
+      <section className="mt-6 grid gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
           <div className="text-sm font-semibold">Yeu cau can xu ly</div>
           <div className="mt-4 space-y-3 text-xs text-zinc-600">
-            <div className="flex items-center justify-between"><span>Mo tai khoan moi</span><span className="font-semibold text-zinc-800">24</span></div>
-            <div className="flex items-center justify-between"><span>Mo khoa giao dich</span><span className="font-semibold text-zinc-800">8</span></div>
-            <div className="flex items-center justify-between"><span>Yeu cau ho tro nhanh</span><span className="font-semibold text-zinc-800">16</span></div>
+            {(data?.pendingRequests ?? []).map((item) => (
+              <Link key={item.label} href={item.href} className="flex items-center justify-between rounded-lg px-2 py-1 hover:bg-zinc-50">
+                <span>{item.label}</span>
+                <span className="font-semibold text-zinc-800">{item.value}</span>
+              </Link>
+            ))}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
-          <div className="text-sm font-semibold">Hoat dong gan day</div>
-          <div className="mt-4 space-y-3 text-xs text-zinc-600">
-            <div className="flex items-center justify-between"><span>Dang duyet ho so vay</span><span className="text-zinc-400">2 phut truoc</span></div>
-            <div className="flex items-center justify-between"><span>Cap nhat han muc</span><span className="text-zinc-400">10 phut truoc</span></div>
-            <div className="flex items-center justify-between"><span>Dong bo he thong</span><span className="text-zinc-400">30 phut truoc</span></div>
+        <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm lg:col-span-2">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold">Giao dich gan day</div>
+            <Link href="/transactions/list" className="text-xs font-medium text-blue-600">Xem tat ca</Link>
           </div>
-        </div>
-
-        <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
-          <div className="text-sm font-semibold">Thong bao</div>
-          <div className="mt-4 space-y-3 text-xs text-zinc-600">
-            <div>Cap nhat tu dong luc 18:00.</div>
-            <div>He thong dang hoat dong on dinh.</div>
-            <div>Mo luong ho tro trong gio cao diem.</div>
+          <div className="mt-4 divide-y divide-black/5 text-sm">
+            {(data?.recentTransactions ?? []).map((item) => {
+              const incoming = item.direction === "in";
+              return (
+                <div key={item.id} className="flex items-center justify-between gap-4 py-3">
+                  <div>
+                    <div className="font-semibold text-zinc-800">{item.accountName || item.transactionCode}</div>
+                    <div className="text-xs text-zinc-500">{item.transactionType} · {item.status}</div>
+                  </div>
+                  <div className={`text-sm font-semibold ${incoming ? "text-emerald-600" : "text-red-500"}`}>
+                    {incoming ? "+" : "-"}{formatVnd(toNumber(item.amount))}
+                  </div>
+                </div>
+              );
+            })}
+            {!loading && data?.recentTransactions?.length === 0 ? <div className="py-6 text-center text-xs text-zinc-400">Chua co giao dich.</div> : null}
           </div>
         </div>
       </section>
