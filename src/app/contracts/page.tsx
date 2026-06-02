@@ -1,10 +1,22 @@
 "use client";
 
+// admin/pages/contracts/page.tsx
+// Trang quản lý hợp đồng & thỏa thuận — phiên bản đầy đủ.
+//
+// Tính năng:
+//  - Hiển thị 3 nhóm template: tiết kiệm / vay tín dụng / vay thế chấp
+//  - Mỗi nhóm chỉ 1 bản ACTIVE — nút "Activate" archive bản cũ tự động
+//  - Tạo / chỉnh sửa / upload .docx / xóa template
+//  - Xem danh sách khách hàng đã ký + tải file hợp đồng
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/admin-shell";
 
 import {
+  activateContractTemplate,
+  archiveContractTemplate,
   createContractTemplate,
+  deleteContractTemplate,
   getContractTemplate,
   listContractAcceptances,
   listContractTemplates,
@@ -18,35 +30,140 @@ import {
   type TemplateSummary,
 } from "../../lib/api/admin-contracts";
 
-const ownerTypeLabel = (value: string) => {
-  switch (value.toUpperCase()) {
-    case "LOAN_APPLICATION":
-      return "Vay vốn";
-    case "SAVING":
-      return "Tiết kiệm";
-    case "USER":
-      return "Khách hàng";
-    default:
-      return value;
-  }
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const CONTRACT_GROUPS = [
+  {
+    key: "saving",
+    label: "Thỏa thuận tiết kiệm",
+    code: "SAVING_AGREEMENT",
+    aliases: ["SAVING_AGREEMENT"],
+    services: "saving",
+    color: "emerald",
+    description: "Thỏa thuận mở sổ tiết kiệm. Có thể dùng placeholder để điền dữ liệu tự động.",
+  },
+  {
+    key: "loan_credit",
+    label: "Hợp đồng vay tín dụng",
+    code: "LOAN_CREDIT",
+    aliases: ["LOAN_CREDIT", "UNSECURED_LOAN_CONTRACT"],
+    services: "loan",
+    color: "blue",
+    description: "Có placeholder, điền dữ liệu hồ sơ vay tự động.",
+  },
+  {
+    key: "loan_mortgage",
+    label: "Hợp đồng vay thế chấp",
+    code: "LOAN_MORTGAGE",
+    aliases: ["LOAN_MORTGAGE", "SECURED_LOAN_CONTRACT"],
+    services: "loan",
+    color: "amber",
+    description: "Có placeholder bao gồm thông tin tài sản thế chấp.",
+  },
+] satisfies ReadonlyArray<{
+  key: string;
+  label: string;
+  code: string;
+  aliases: readonly string[];
+  services: string;
+  color: string;
+  description: string;
+}>;
+
+type GroupKey = (typeof CONTRACT_GROUPS)[number]["key"];
+
+const PLACEHOLDER_PRESETS: Array<{
+  group: string;
+  items: Array<{ fieldCode: string; fieldLabel: string; dataSource: string }>;
+}> = [
+  {
+    group: "Khách hàng",
+    items: [
+      { fieldCode: "customer_name", fieldLabel: "Họ và tên", dataSource: "user.fullName" },
+      { fieldCode: "customer_dob", fieldLabel: "Ngày sinh", dataSource: "user.dob" },
+      { fieldCode: "customer_citizen_id", fieldLabel: "CCCD", dataSource: "user.citizenId" },
+      { fieldCode: "customer_phone", fieldLabel: "Số điện thoại", dataSource: "user.phone" },
+      { fieldCode: "customer_address", fieldLabel: "Địa chỉ", dataSource: "user.address" },
+    ],
+  },
+  {
+    group: "Sổ tiết kiệm",
+    items: [
+      { fieldCode: "saving_product", fieldLabel: "Sản phẩm tiết kiệm", dataSource: "saving.productName" },
+      { fieldCode: "saving_amount", fieldLabel: "Số tiền gửi", dataSource: "saving.principalAmount" },
+      { fieldCode: "saving_term_months", fieldLabel: "Kỳ hạn (tháng)", dataSource: "saving.termMonths" },
+      { fieldCode: "saving_interest_rate", fieldLabel: "Lãi suất", dataSource: "saving.interestRate" },
+      { fieldCode: "saving_open_date", fieldLabel: "Ngày mở sổ", dataSource: "saving.openDate" },
+      { fieldCode: "saving_maturity_date", fieldLabel: "Ngày đáo hạn", dataSource: "saving.maturityDate" },
+      { fieldCode: "saving_maturity_amount", fieldLabel: "Số tiền đáo hạn", dataSource: "saving.maturityAmount" },
+      { fieldCode: "saving_auto_renew", fieldLabel: "Tự động tái tục", dataSource: "saving.autoRenew" },
+    ],
+  },
+  {
+    group: "Khoản vay",
+    items: [
+      { fieldCode: "loan_amount", fieldLabel: "Số tiền vay", dataSource: "loan.amount" },
+      { fieldCode: "loan_term_months", fieldLabel: "Kỳ hạn (tháng)", dataSource: "loan.termMonths" },
+      { fieldCode: "loan_interest_rate", fieldLabel: "Lãi suất", dataSource: "loan.interestRate" },
+      { fieldCode: "loan_purpose", fieldLabel: "Mục đích vay", dataSource: "loan.purpose" },
+      { fieldCode: "loan_product", fieldLabel: "Sản phẩm vay", dataSource: "loan.productName" },
+      { fieldCode: "loan_monthly_payment", fieldLabel: "Trả hàng tháng", dataSource: "loan.monthlyPayment" },
+    ],
+  },
+  {
+    group: "Tài sản thế chấp",
+    items: [
+      { fieldCode: "collateral_desc", fieldLabel: "Mô tả tài sản", dataSource: "loan.collateralDescription" },
+      { fieldCode: "collateral_value", fieldLabel: "Giá trị tài sản", dataSource: "loan.collateralValue" },
+      { fieldCode: "collateral_address", fieldLabel: "Địa chỉ tài sản", dataSource: "loan.collateralAddress" },
+      { fieldCode: "collateral_cert_no", fieldLabel: "Số GCN", dataSource: "loan.collateralCertNo" },
+    ],
+  },
+  {
+    group: "Hợp đồng & ngày",
+    items: [
+      { fieldCode: "contract_number", fieldLabel: "Số hợp đồng", dataSource: "contract.number" },
+      { fieldCode: "contract_date", fieldLabel: "Ngày hợp đồng", dataSource: "contract.date" },
+      { fieldCode: "sign_date", fieldLabel: "Ngày ký", dataSource: "contract.signedAt" },
+      { fieldCode: "today", fieldLabel: "Ngày hiện tại", dataSource: "system.today" },
+    ],
+  },
+];
+
+const defaultPlaceholdersForGroup = (group?: (typeof CONTRACT_GROUPS)[number]): TemplatePlaceholder[] => {
+  if (!group) return [];
+  const allowedGroups = group.key === "saving"
+    ? ["Khách hàng", "Sổ tiết kiệm", "Hợp đồng & ngày"]
+    : group.key === "loan_credit"
+      ? ["Khách hàng", "Khoản vay", "Hợp đồng & ngày"]
+      : ["Khách hàng", "Khoản vay", "Tài sản thế chấp", "Hợp đồng & ngày"];
+
+  return PLACEHOLDER_PRESETS
+    .filter((preset) => allowedGroups.includes(preset.group))
+    .flatMap((preset) => preset.items)
+    .map((item, index) => ({ ...item, sortOrder: index + 1 }));
 };
 
-const formatDateTime = (value: string | null | undefined) => {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(date);
+const normalizeTemplateCode = (code: string) => code.trim().toUpperCase();
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const fmt = (v?: string | null) => {
+  if (!v) return "—";
+  const d = new Date(v);
+  return isNaN(d.getTime())
+    ? v
+    : new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(d);
 };
 
-const isSavingTemplate = (code?: string | null, services?: string | null) => {
-  const normalizedCode = (code ?? "").toUpperCase();
-  const normalizedServices = (services ?? "").toLowerCase();
-  return normalizedCode === "SAVING_AGREEMENT" || normalizedServices.includes("saving");
+const statusBadge = (status?: string | null) => {
+  const s = (status ?? "").toLowerCase();
+  if (s === "active")
+    return <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">ACTIVE</span>;
+  if (s === "archived")
+    return <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-500">ARCHIVED</span>;
+  return <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600">DRAFT</span>;
 };
-
-const normalizeStatus = (value?: string | null) => (value ?? "").trim().toLowerCase();
-
-const isActiveStatus = (value?: string | null) => normalizeStatus(value) === "active";
 
 type TemplateForm = {
   name: string;
@@ -58,702 +175,536 @@ type TemplateForm = {
   placeholders: TemplatePlaceholder[];
 };
 
-const emptyTemplateForm = (): TemplateForm => ({
-  name: "",
-  code: "",
+const emptyForm = (group?: (typeof CONTRACT_GROUPS)[number]): TemplateForm => ({
+  name: group ? `${group.label} v1.0` : "",
+  code: group?.code ?? "",
   description: "",
-  services: "loan",
-  status: "active",
+  services: group?.services ?? "loan",
+  status: "draft",
   templateBody: "",
-  placeholders: [],
+  placeholders: defaultPlaceholdersForGroup(group),
 });
 
-const PLACEHOLDER_PRESETS: Array<{
-  group: string;
-  items: Array<{ fieldCode: string; fieldLabel: string; dataSource: string }>;
-}> = [
-  {
-    group: "Thông tin khách hàng",
-    items: [
-      { fieldCode: "customer_name", fieldLabel: "Họ và tên", dataSource: "user.fullName" },
-      { fieldCode: "customer_dob", fieldLabel: "Ngày sinh", dataSource: "user.dob" },
-      { fieldCode: "customer_citizen_id", fieldLabel: "CCCD", dataSource: "user.citizenId" },
-      { fieldCode: "customer_phone", fieldLabel: "Số điện thoại", dataSource: "user.phone" },
-      { fieldCode: "customer_email", fieldLabel: "Email", dataSource: "user.email" },
-      { fieldCode: "customer_address", fieldLabel: "Địa chỉ", dataSource: "user.address" },
-    ],
-  },
-  {
-    group: "Thông tin khoản vay",
-    items: [
-      { fieldCode: "loan_amount", fieldLabel: "Số tiền vay", dataSource: "loan.amount" },
-      { fieldCode: "loan_term_months", fieldLabel: "Kỳ hạn (tháng)", dataSource: "loan.termMonths" },
-      { fieldCode: "loan_interest_rate", fieldLabel: "Lãi suất", dataSource: "loan.interestRate" },
-      { fieldCode: "loan_purpose", fieldLabel: "Mục đích vay", dataSource: "loan.purpose" },
-      { fieldCode: "loan_type", fieldLabel: "Loại vay", dataSource: "loan.type" },
-      { fieldCode: "loan_product", fieldLabel: "Sản phẩm vay", dataSource: "loan.productName" },
-    ],
-  },
-  {
-    group: "Tài sản & thu nhập",
-    items: [
-      { fieldCode: "income_monthly", fieldLabel: "Thu nhập hàng tháng", dataSource: "loan.monthlyIncome" },
-      { fieldCode: "collateral_desc", fieldLabel: "Mô tả tài sản", dataSource: "loan.collateralDescription" },
-      { fieldCode: "collateral_value", fieldLabel: "Giá trị tài sản", dataSource: "loan.collateralValue" },
-    ],
-  },
-  {
-    group: "Ngày tháng & hợp đồng",
-    items: [
-      { fieldCode: "contract_number", fieldLabel: "Số hợp đồng", dataSource: "contract.number" },
-      { fieldCode: "contract_date", fieldLabel: "Ngày hợp đồng", dataSource: "contract.date" },
-      { fieldCode: "sign_date", fieldLabel: "Ngày ký", dataSource: "contract.signedAt" },
-      { fieldCode: "today", fieldLabel: "Ngày hiện tại", dataSource: "system.today" },
-    ],
-  },
-];
+const toForm = (d: TemplateDetail): TemplateForm => ({
+  name: d.name ?? "",
+  code: d.code ?? "",
+  description: d.description ?? "",
+  services: d.services ?? "loan",
+  status: (d.status ?? "draft").toLowerCase(),
+  templateBody: d.templateBody ?? "",
+  placeholders: (d.placeholders ?? []).map((p) => ({ ...p })),
+});
 
-const toForm = (detail: TemplateDetail | null): TemplateForm => {
-  if (!detail) return emptyTemplateForm();
-  return {
-    name: detail.name ?? "",
-    code: detail.code ?? "",
-    description: detail.description ?? "",
-    services: detail.services ?? "loan",
-    status: normalizeStatus(detail.status) || "active",
-    templateBody: detail.templateBody ?? "",
-    placeholders: detail.placeholders ? detail.placeholders.map((p) => ({ ...p })) : [],
-  };
-};
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ContractsPage() {
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
-  const [templateDetail, setTemplateDetail] = useState<TemplateDetail | null>(null);
-  const [templateForm, setTemplateForm] = useState<TemplateForm>(emptyTemplateForm());
-  const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
-  const [savingTemplate, setSavingTemplate] = useState(false);
-  const [uploadingTemplate, setUploadingTemplate] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [detail, setDetail] = useState<TemplateDetail | null>(null);
+  const [form, setForm] = useState<TemplateForm>(emptyForm());
+  const [isCreating, setIsCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [activating, setActivating] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const [acceptances, setAcceptances] = useState<ContractAcceptanceSummary[]>([]);
   const [contracts, setContracts] = useState<GeneratedContract[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
-  const [selectedCustomerKey, setSelectedCustomerKey] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
-  const [error, setError] = useState("");
+  const [selectedCustomerKey, setSelectedCustomerKey] = useState("");
 
-  const templateBodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const [error, setError] = useState("");
+  const [toast, setToast] = useState("");
+  const templateBodyRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── Load templates ──────────────────────────────────────────────────────────
 
   useEffect(() => {
     let alive = true;
-
-    async function loadTemplates() {
-      setLoadingTemplates(true);
-      setError("");
-      try {
-        const data = await listContractTemplates();
+    setLoadingTemplates(true);
+    listContractTemplates()
+      .then((data) => {
         if (!alive) return;
         setTemplates(data);
-        if (!selectedTemplateId && data.length > 0) {
-          setSelectedTemplateId(data[0].id);
-        }
-      } catch (err) {
-        if (!alive) return;
-        setError(err instanceof Error ? err.message : "Không thể tải template");
-      } finally {
-        if (alive) setLoadingTemplates(false);
-      }
-    }
-
-    loadTemplates();
-
-    return () => {
-      alive = false;
-    };
+        if (!selectedId && data.length > 0) setSelectedId(data[0].id);
+      })
+      .catch((e) => alive && setError(e.message ?? "Không tải được template"))
+      .finally(() => alive && setLoadingTemplates(false));
+    return () => { alive = false; };
   }, []);
 
+  // ── Load template detail ────────────────────────────────────────────────────
+
   useEffect(() => {
-    if (!selectedTemplateId) {
-      if (!isCreatingNew) {
-        setTemplateDetail(null);
-        setTemplateForm(emptyTemplateForm());
-      }
-      return;
-    }
-
+    if (!selectedId) return;
     let alive = true;
-    setError("");
-
-    getContractTemplate(selectedTemplateId)
-      .then((detail) => {
+    getContractTemplate(selectedId)
+      .then((d) => {
         if (!alive) return;
-        setTemplateDetail(detail);
-        setTemplateForm(toForm(detail));
-        setIsCreatingNew(false);
+        setDetail(d);
+        setForm(toForm(d));
+        setIsCreating(false);
       })
-      .catch((err) => {
-        if (!alive) return;
-        setError(err instanceof Error ? err.message : "Không thể tải chi tiết template");
-      });
+      .catch((e) => alive && setError(e.message ?? "Không tải được chi tiết"));
+    return () => { alive = false; };
+  }, [selectedId]);
 
-    return () => {
-      alive = false;
-    };
-  }, [selectedTemplateId, isCreatingNew]);
+  // ── Load docs ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
     let alive = true;
-
-    async function loadDocuments() {
-      setLoadingDocs(true);
-      setError("");
-      try {
-        const [acc, docs] = await Promise.all([
-          listContractAcceptances("all"),
-          listGeneratedContracts(),
-        ]);
+    setLoadingDocs(true);
+    Promise.all([listContractAcceptances("all"), listGeneratedContracts()])
+      .then(([acc, docs]) => {
         if (!alive) return;
         setAcceptances(acc);
         setContracts(docs);
-      } catch (err) {
-        if (!alive) return;
-        setError(err instanceof Error ? err.message : "Không thể tải danh sách hợp đồng");
-      } finally {
-        if (alive) setLoadingDocs(false);
-      }
-    }
-
-    loadDocuments();
-
-    return () => {
-      alive = false;
-    };
+      })
+      .catch((e) => alive && setError(e.message ?? "Không tải được danh sách hợp đồng"))
+      .finally(() => alive && setLoadingDocs(false));
+    return () => { alive = false; };
   }, []);
 
-  const loanTemplates = useMemo(
-    () => templates.filter((t) => !isSavingTemplate(t.code, t.services)),
-    [templates]
-  );
+  // ── Computed ────────────────────────────────────────────────────────────────
 
-  const savingTemplates = useMemo(
-    () => templates.filter((t) => isSavingTemplate(t.code, t.services)),
-    [templates]
-  );
+  const groupedTemplates = useMemo(() => {
+    return CONTRACT_GROUPS.map((g) => ({
+      ...g,
+      templates: templates.filter(
+        (t) => g.aliases.includes(normalizeTemplateCode(t.code))
+      ),
+      activeTemplate: templates.find(
+        (t) =>
+          g.aliases.includes(normalizeTemplateCode(t.code)) &&
+          (t.status ?? "").toLowerCase() === "active"
+      ) ?? null,
+    }));
+  }, [templates]);
 
   const contractMap = useMemo(() => {
-    const map = new Map<string, GeneratedContract>();
-    contracts.forEach((item) => {
-      if (item.contractNumber) {
-        map.set(item.contractNumber, item);
-      }
-    });
-    return map;
+    const m = new Map<string, GeneratedContract>();
+    contracts.forEach((c) => c.contractNumber && m.set(c.contractNumber, c));
+    return m;
   }, [contracts]);
 
   const customers = useMemo(() => {
-    const map = new Map<string, { key: string; userId: number | null; name: string; phone: string; count: number; lastAcceptedAt: string }>();
-    acceptances.forEach((item) => {
-      const key = item.userId != null
-        ? `user:${item.userId}`
-        : `phone:${item.userPhone ?? item.referenceId}`;
-      const existing = map.get(key) ?? {
-        key,
-        userId: item.userId ?? null,
-        name: item.userFullName ?? "Khách hàng",
-        phone: item.userPhone ?? "",
-        count: 0,
-        lastAcceptedAt: "",
-      };
-      existing.count += 1;
-      if (item.acceptedAt && item.acceptedAt > existing.lastAcceptedAt) {
-        existing.lastAcceptedAt = item.acceptedAt;
-      }
-      map.set(key, existing);
+    const map = new Map<string, { key: string; name: string; phone: string; count: number; last: string }>();
+    acceptances.forEach((a) => {
+      const key = a.userId != null ? `user:${a.userId}` : `phone:${a.userPhone ?? a.referenceId}`;
+      const ex = map.get(key) ?? { key, name: a.userFullName ?? "Khách hàng", phone: a.userPhone ?? "", count: 0, last: "" };
+      ex.count++;
+      if (a.acceptedAt && a.acceptedAt > ex.last) ex.last = a.acceptedAt;
+      map.set(key, ex);
     });
-
-    const list = Array.from(map.values());
     const q = customerSearch.trim().toLowerCase();
-    const filtered = q
-      ? list.filter((item) =>
-        [item.name, item.phone, String(item.userId ?? ""), item.key]
-          .filter(Boolean)
-          .some((value) => value.toLowerCase().includes(q))
-      )
-      : list;
-
-    return filtered.sort((a, b) => (b.lastAcceptedAt ?? "").localeCompare(a.lastAcceptedAt ?? ""));
+    return Array.from(map.values())
+      .filter((c) => !q || [c.name, c.phone, c.key].some((v) => v.toLowerCase().includes(q)))
+      .sort((a, b) => b.last.localeCompare(a.last));
   }, [acceptances, customerSearch]);
 
   useEffect(() => {
-    if (!selectedCustomerKey && customers.length > 0) {
-      setSelectedCustomerKey(customers[0].key);
-    }
-  }, [customers, selectedCustomerKey]);
+    if (!selectedCustomerKey && customers.length > 0) setSelectedCustomerKey(customers[0].key);
+  }, [customers]);
 
   const selectedAcceptances = useMemo(() => {
     if (!selectedCustomerKey) return [];
     if (selectedCustomerKey.startsWith("user:")) {
       const id = Number(selectedCustomerKey.replace("user:", ""));
-      return acceptances.filter((item) => item.userId === id);
+      return acceptances.filter((a) => a.userId === id);
     }
-    if (selectedCustomerKey.startsWith("phone:")) {
-      const phone = selectedCustomerKey.replace("phone:", "");
-      return acceptances.filter((item) => (item.userPhone ?? "") === phone);
-    }
-    return [];
+    const phone = selectedCustomerKey.replace("phone:", "");
+    return acceptances.filter((a) => (a.userPhone ?? "") === phone);
   }, [acceptances, selectedCustomerKey]);
 
-  const isSavingAgreement = isSavingTemplate(templateForm.code, templateForm.services);
+  // ── Actions ─────────────────────────────────────────────────────────────────
 
-  async function handleSaveTemplate() {
-    setSavingTemplate(true);
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
+  }
+
+  async function reloadTemplates() {
+    const data = await listContractTemplates();
+    setTemplates(data);
+  }
+
+  async function handleActivate() {
+    if (!detail) return;
+    setActivating(true);
+    setError("");
+    try {
+      const updated = await activateContractTemplate(detail.id);
+      setDetail(updated);
+      setForm(toForm(updated));
+      await reloadTemplates();
+      showToast("✓ Đã activate — bản cũ đã được archive tự động");
+    } catch (e: any) {
+      setError(e.message ?? "Không thể activate template");
+    } finally {
+      setActivating(false);
+    }
+  }
+
+  async function handleArchive() {
+    if (!detail) return;
+    if (!confirm("Archive template này? Người dùng sẽ không thể ký hợp đồng loại này cho đến khi có bản active khác.")) return;
+    setError("");
+    try {
+      const updated = await archiveContractTemplate(detail.id);
+      setDetail(updated);
+      setForm(toForm(updated));
+      await reloadTemplates();
+      showToast("Đã archive template");
+    } catch (e: any) {
+      setError(e.message ?? "Không thể archive template");
+    }
+  }
+
+  async function handleSave() {
+    setSaving(true);
     setError("");
     try {
       const payload = {
-        name: templateForm.name.trim(),
-        code: templateForm.code.trim(),
-        description: templateForm.description.trim() || null,
-        services: templateForm.services.trim() || null,
-        status: templateForm.status.trim().toLowerCase() || null,
-        templateBody: templateForm.templateBody,
-        templateFileUrl: templateDetail?.templateFileUrl ?? null,
-        placeholders: isSavingAgreement ? [] : templateForm.placeholders.map((p, index) => {
-          const sortOrder = Number.isFinite(p.sortOrder as number) ? (p.sortOrder as number) : index + 1;
-          return {
-            fieldCode: p.fieldCode.trim(),
-            fieldLabel: p.fieldLabel?.trim() || null,
-            dataSource: p.dataSource?.trim() || null,
-            sortOrder,
-          };
-        }),
+        name: form.name.trim(),
+        code: form.code.trim(),
+        description: form.description.trim() || null,
+        services: form.services,
+        status: form.status,
+        templateBody: form.templateBody,
+        templateFileUrl: detail?.templateFileUrl ?? null,
+        placeholders: form.placeholders.map((p, i) => ({
+              ...p,
+              fieldCode: p.fieldCode.trim(),
+              fieldLabel: p.fieldLabel?.trim() ?? null,
+              dataSource: p.dataSource?.trim() ?? null,
+              sortOrder: typeof p.sortOrder === "number" ? p.sortOrder : i + 1,
+            })),
       };
 
-      if (templateDetail && !isCreatingNew) {
-        const updated = await updateContractTemplate(templateDetail.id, payload);
-        setTemplateDetail(updated);
-        setTemplateForm(toForm(updated));
+      let updated: TemplateDetail;
+      if (detail && !isCreating) {
+        updated = await updateContractTemplate(detail.id, payload);
       } else {
-        const created = await createContractTemplate(payload);
-        setTemplateDetail(created);
-        setTemplateForm(toForm(created));
-        setSelectedTemplateId(created.id);
-        setIsCreatingNew(false);
+        updated = await createContractTemplate(payload);
+        setSelectedId(updated.id);
+        setIsCreating(false);
       }
-
-      const refreshed = await listContractTemplates();
-      setTemplates(refreshed);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể lưu template");
+      setDetail(updated);
+      setForm(toForm(updated));
+      await reloadTemplates();
+      showToast("✓ Đã lưu template");
+    } catch (e: any) {
+      setError(e.message ?? "Không thể lưu template");
     } finally {
-      setSavingTemplate(false);
+      setSaving(false);
     }
   }
 
-  async function handleUploadTemplate(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const input = form.querySelector("input[type=file]") as HTMLInputElement;
-    if (!input || !input.files || input.files.length === 0) return;
-    const file = input.files[0];
-    setUploadingTemplate(true);
-    setError("");
-
+  async function handleDelete() {
+    if (!detail) return;
+    if ((detail.status ?? "").toLowerCase() === "active") {
+      setError("Không thể xóa template đang active. Archive trước.");
+      return;
+    }
+    if (!confirm(`Xóa template "${detail.name}"?`)) return;
+    setDeleting(true);
     try {
-      const data = new FormData(form);
-      const name = (data.get("name") as string) || file.name;
-      const code = (data.get("code") as string) ||
-        "TPL-" + Math.random().toString(36).substring(2, 8).toUpperCase();
-      const description = (data.get("description") as string) || "";
-      const services = (data.get("services") as string) || "loan";
-
-      const uploaded = await uploadContractTemplate({
-        file,
-        name,
-        code,
-        description,
-        services,
-      });
-
-      setTemplateDetail(uploaded);
-      setTemplateForm(toForm(uploaded));
-      setSelectedTemplateId(uploaded.id);
-      setIsCreatingNew(false);
-
-      const refreshed = await listContractTemplates();
-      setTemplates(refreshed);
-      form.reset();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể tải template lên");
+      await deleteContractTemplate(detail.id);
+      await reloadTemplates();
+      setSelectedId(null);
+      setDetail(null);
+      setForm(emptyForm());
+      showToast("Đã xóa template");
+    } catch (e: any) {
+      setError(e.message ?? "Không thể xóa template");
     } finally {
-      setUploadingTemplate(false);
+      setDeleting(false);
     }
   }
 
-  function handleAddPlaceholder() {
-    setTemplateForm((prev) => ({
-      ...prev,
-      placeholders: [
-        ...prev.placeholders,
-        { fieldCode: "", fieldLabel: "", dataSource: "", sortOrder: prev.placeholders.length + 1 },
-      ],
-    }));
+  async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = e.currentTarget;
+    const input = f.querySelector<HTMLInputElement>("input[type=file]");
+    if (!input?.files?.[0]) return;
+    setUploading(true);
+    setError("");
+    try {
+      const fd = new FormData(f);
+      const uploaded = await uploadContractTemplate({
+        file: input.files[0],
+        name: (fd.get("name") as string) || input.files[0].name,
+        code: (fd.get("code") as string) || "TPL-" + Math.random().toString(36).slice(2, 8).toUpperCase(),
+        description: (fd.get("description") as string) || "",
+        services: (fd.get("services") as string) || "loan",
+      });
+      setDetail(uploaded);
+      setForm(toForm(uploaded));
+      setSelectedId(uploaded.id);
+      setIsCreating(false);
+      await reloadTemplates();
+      f.reset();
+      showToast("✓ Upload thành công");
+    } catch (e: any) {
+      setError(e.message ?? "Không thể upload template");
+    } finally {
+      setUploading(false);
+    }
   }
 
   function handleAddPreset(item: { fieldCode: string; fieldLabel: string; dataSource: string }) {
-    setTemplateForm((prev) => {
+    setForm((prev) => {
       const exists = prev.placeholders.some((p) => p.fieldCode === item.fieldCode);
       const nextPlaceholders = exists
         ? prev.placeholders
-        : [
-          ...prev.placeholders,
-          {
-            fieldCode: item.fieldCode,
-            fieldLabel: item.fieldLabel,
-            dataSource: item.dataSource,
-            sortOrder: prev.placeholders.length + 1,
-          },
-        ];
+        : [...prev.placeholders, { fieldCode: item.fieldCode, fieldLabel: item.fieldLabel, dataSource: item.dataSource, sortOrder: prev.placeholders.length + 1 }];
 
       const token = `{{${item.fieldCode}}}`;
       const body = prev.templateBody ?? "";
       const textarea = templateBodyRef.current;
-
-      if (!textarea) {
-        return {
-          ...prev,
-          templateBody: body ? `${body}\n${token}` : token,
-          placeholders: nextPlaceholders,
-        };
-      }
+      if (!textarea) return { ...prev, templateBody: body ? `${body}\n${token}` : token, placeholders: nextPlaceholders };
 
       const start = textarea.selectionStart ?? body.length;
       const end = textarea.selectionEnd ?? start;
       const nextBody = `${body.slice(0, start)}${token}${body.slice(end)}`;
+      queueMicrotask(() => { const pos = start + token.length; textarea.focus(); textarea.setSelectionRange(pos, pos); });
 
-      queueMicrotask(() => {
-        const pos = start + token.length;
-        textarea.focus();
-        textarea.setSelectionRange(pos, pos);
-      });
-
-      return {
-        ...prev,
-        templateBody: nextBody,
-        placeholders: nextPlaceholders,
-      };
+      return { ...prev, templateBody: nextBody, placeholders: nextPlaceholders };
     });
   }
 
-  function handlePlaceholderChange(index: number, key: keyof TemplatePlaceholder, value: string) {
-    setTemplateForm((prev) => {
-      const updated = [...prev.placeholders];
-      const nextValue = key === "sortOrder" ? Number(value) : value;
-      updated[index] = { ...updated[index], [key]: nextValue };
-      return { ...prev, placeholders: updated };
-    });
-  }
+  const isActive = (detail?.status ?? "").toLowerCase() === "active";
+  const isDraft = (detail?.status ?? "").toLowerCase() === "draft";
 
-  function handleRemovePlaceholder(index: number) {
-    setTemplateForm((prev) => ({
-      ...prev,
-      placeholders: prev.placeholders.filter((_, idx) => idx !== index),
-    }));
-  }
+  // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <AdminShell
-      title="Quản lý hợp đồng & thỏa thuận"
-      subtitle="Danh sách khách hàng + chỉnh sửa template"
-    >
-      {error ? (
+    <AdminShell title="Quản lý hợp đồng & thỏa thuận" subtitle="Template · Khách hàng đã ký · Tài liệu đã sinh">
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-full bg-emerald-700 px-5 py-2 text-sm font-medium text-white shadow-lg">
+          {toast}
+        </div>
+      )}
+
+      {error && (
         <div className="mb-4 rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
+          <button className="ml-3 text-rose-500 underline" onClick={() => setError("")}>Đóng</button>
         </div>
-      ) : null}
+      )}
 
-      <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
-        <div className="font-semibold">Luồng xử lý hợp đồng & thỏa thuận</div>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-[13px]">
-          <li>Danh sách khách hàng → chọn khách hàng → tải hợp đồng/thỏa thuận đã sinh.</li>
-          <li>Template hợp đồng cho vay có placeholder, thỏa thuận tiết kiệm dùng 1 bản cố định.</li>
-          <li>Chỉnh sửa template trực tiếp trước khi áp dụng phiên bản mới.</li>
-        </ul>
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[320px,1fr]">
-        <div className="rounded-lg bg-white p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold">Danh sách khách hàng</h3>
-            <div className="text-xs text-zinc-500">{customers.length} KH</div>
-          </div>
-          <input
-            value={customerSearch}
-            onChange={(e) => setCustomerSearch(e.target.value)}
-            placeholder="Tìm theo tên, SĐT"
-            className="mt-3 w-full rounded border border-black/10 px-3 py-2 text-sm"
-          />
-          <div className="mt-3 flex max-h-[420px] flex-col gap-2 overflow-y-auto">
-            {loadingDocs ? (
-              <div className="text-xs text-zinc-400">Đang tải dữ liệu...</div>
-            ) : customers.length === 0 ? (
-              <div className="text-xs text-zinc-500">Chưa có dữ liệu hợp đồng.</div>
-            ) : (
-              customers.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setSelectedCustomerKey(item.key)}
-                  className={`flex items-start justify-between rounded-lg border px-3 py-2 text-left text-sm transition ${
-                    selectedCustomerKey === item.key
-                      ? "border-blue-200 bg-blue-50"
-                      : "border-transparent hover:bg-zinc-50"
-                  }`}
-                >
-                  <div>
-                    <div className="font-semibold text-zinc-900">{item.name}</div>
-                    <div className="text-xs text-zinc-500">{item.phone || `ID ${item.userId ?? "—"}`}</div>
-                  </div>
-                  <div className="text-xs text-zinc-400">{item.count} hợp đồng</div>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-lg bg-white p-4">
-          <h3 className="text-sm font-bold">Hợp đồng & thỏa thuận của khách hàng</h3>
-          <div className="mt-1 text-xs text-zinc-500">
-            Chọn khách hàng để xem danh sách hợp đồng và tải file đã sinh.
-          </div>
-          <div className="mt-4 flex flex-col gap-3">
-            {loadingDocs ? (
-              <div className="text-xs text-zinc-400">Đang tải dữ liệu...</div>
-            ) : selectedAcceptances.length === 0 ? (
-              <div className="text-xs text-zinc-500">Chưa có hợp đồng cho khách hàng này.</div>
-            ) : (
-              selectedAcceptances.map((item) => {
-                const contract = item.contractNumber ? contractMap.get(item.contractNumber) : undefined;
-                return (
-                  <div key={`${item.referenceType}-${item.referenceId}-${item.contractNumber ?? ""}`}
-                       className="rounded-lg border border-zinc-100 p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-zinc-900">
-                          {item.contractNumber ?? "Chưa có số"}
-                        </div>
-                        <div className="text-xs text-zinc-500">
-                          {item.templateName ?? item.templateCode ?? "Template"} · {ownerTypeLabel(item.referenceType)}
-                        </div>
-                      </div>
-                      <div className="text-xs text-zinc-500">{item.acceptanceStatus ?? "—"}</div>
-                    </div>
-                    <div className="mt-2 text-xs text-zinc-500">
-                      Xác nhận: {formatDateTime(item.acceptedAt)}
-                    </div>
-                    <div className="mt-3">
-                      {contract?.fileUrl ? (
-                        <a
-                          className="inline-flex rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white"
-                          href={contract.fileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Tải file
-                        </a>
-                      ) : (
-                        <span className="text-xs text-zinc-400">Chưa có file hợp đồng</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[320px,1fr]">
-        <div className="rounded-lg bg-white p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold">Danh sách template</h3>
-            <button
-              type="button"
-              onClick={() => {
-                setIsCreatingNew(true);
-                setSelectedTemplateId(null);
-                setTemplateDetail(null);
-                setTemplateForm({
-                  ...emptyTemplateForm(),
-                  name: "Thỏa thuận tiết kiệm",
-                  code: "SAVING_AGREEMENT",
-                  services: "saving",
-                });
-              }}
-              className="rounded bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700"
-            >
-              Tạo thỏa thuận
-            </button>
-          </div>
-
-          <div className="mt-3">
-            <div className="text-xs font-semibold text-zinc-500">Hợp đồng vay</div>
-            <div className="mt-2 flex flex-col gap-2">
-              {loadingTemplates ? (
-                <div className="text-xs text-zinc-400">Đang tải template...</div>
-              ) : loanTemplates.length === 0 ? (
-                <div className="text-xs text-zinc-500">Chưa có template hợp đồng.</div>
-              ) : (
-                loanTemplates.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setSelectedTemplateId(t.id)}
-                    className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
-                      selectedTemplateId === t.id
-                        ? "border-blue-200 bg-blue-50"
-                        : "border-transparent hover:bg-zinc-50"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="font-semibold text-zinc-900">{t.name}</div>
-                      {isActiveStatus(t.status) ? (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                          ACTIVE
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="text-xs text-zinc-500">{t.code}</div>
-                  </button>
-                ))
+      {/* ── Tổng quan 3 nhóm ────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {CONTRACT_GROUPS.map((g) => {
+          const group = groupedTemplates.find((x) => x.key === g.key)!;
+          return (
+            <div key={g.key} className="rounded-lg border border-zinc-100 bg-white p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold">{g.label}</span>
+                {group.activeTemplate
+                  ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">ACTIVE</span>
+                  : <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] text-zinc-500">Chưa active</span>
+                }
+              </div>
+              <div className="mt-1 text-xs text-zinc-500">{g.description}</div>
+              <div className="mt-2 text-xs text-zinc-500">{group.templates.length} phiên bản</div>
+              {group.activeTemplate && (
+                <div className="mt-1 text-xs font-medium text-emerald-700">{group.activeTemplate.name}</div>
               )}
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <div className="text-xs font-semibold text-zinc-500">Thỏa thuận tiết kiệm</div>
-            <div className="mt-2 flex flex-col gap-2">
-              {savingTemplates.length === 0 ? (
-                <div className="text-xs text-zinc-500">Chưa có template thỏa thuận.</div>
-              ) : (
-                savingTemplates.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setSelectedTemplateId(t.id)}
-                    className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
-                      selectedTemplateId === t.id
-                        ? "border-blue-200 bg-blue-50"
-                        : "border-transparent hover:bg-zinc-50"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="font-semibold text-zinc-900">{t.name}</div>
-                      {isActiveStatus(t.status) ? (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                          ACTIVE
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="text-xs text-zinc-500">{t.code}</div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg bg-white p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold">Chỉnh sửa template</h3>
-            <button
-              type="button"
-              onClick={handleSaveTemplate}
-              className="rounded bg-blue-600 px-3 py-2 text-xs font-semibold text-white"
-              disabled={savingTemplate}
-            >
-              {savingTemplate ? "Đang lưu..." : templateDetail && !isCreatingNew ? "Lưu thay đổi" : "Tạo template"}
-            </button>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <input
-              value={templateForm.name}
-              onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))}
-              placeholder="Tên template"
-              className="rounded border p-2 text-sm"
-            />
-            <input
-              value={templateForm.code}
-              onChange={(e) => setTemplateForm((prev) => ({ ...prev, code: e.target.value }))}
-              placeholder="Mã template (VD: LOAN_CONTRACT)"
-              className="rounded border p-2 text-sm"
-            />
-            <input
-              value={templateForm.description}
-              onChange={(e) => setTemplateForm((prev) => ({ ...prev, description: e.target.value }))}
-              placeholder="Mô tả"
-              className="rounded border p-2 text-sm"
-            />
-            <div className="flex gap-2">
-              <select
-                value={templateForm.services}
-                onChange={(e) => setTemplateForm((prev) => ({ ...prev, services: e.target.value }))}
-                className="w-full rounded border p-2 text-sm"
+              <button
+                className="mt-3 w-full rounded-md bg-zinc-50 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+                onClick={() => {
+                  const first = group.templates[0];
+                  if (first) setSelectedId(first.id);
+                  else {
+                    setIsCreating(true);
+                    setSelectedId(null);
+                    setDetail(null);
+                    setForm(emptyForm(g));
+                  }
+                }}
               >
-                <option value="loan">Hợp đồng vay</option>
-                <option value="saving">Thỏa thuận tiết kiệm</option>
+                {group.templates.length > 0 ? "Xem template" : "Tạo template"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Grid chính: danh sách + editor ───────────────────────────────────── */}
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[280px,1fr]">
+
+        {/* Danh sách template */}
+        <div className="rounded-lg bg-white p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold">Phiên bản template</h3>
+            <button
+              className="rounded bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700"
+              onClick={() => {
+                setIsCreating(true);
+                setSelectedId(null);
+                setDetail(null);
+                setForm(emptyForm());
+              }}
+            >
+              + Tạo mới
+            </button>
+          </div>
+
+          {CONTRACT_GROUPS.map((g) => {
+            const group = groupedTemplates.find((x) => x.key === g.key)!;
+            return (
+              <div key={g.key} className="mb-4">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400 mb-1">{g.label}</div>
+                {loadingTemplates ? (
+                  <div className="text-xs text-zinc-400">Đang tải...</div>
+                ) : group.templates.length === 0 ? (
+                  <div className="text-xs text-zinc-400">Chưa có phiên bản nào</div>
+                ) : (
+                  group.templates.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setSelectedId(t.id)}
+                      className={`mb-1 w-full rounded-md border px-3 py-2 text-left text-xs transition ${
+                        selectedId === t.id ? "border-blue-200 bg-blue-50" : "border-transparent hover:bg-zinc-50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-zinc-900 truncate">{t.name}</span>
+                        {statusBadge(t.status)}
+                      </div>
+                      <div className="text-zinc-400 mt-0.5">Sửa {fmt(t.updatedAt)}</div>
+                    </button>
+                  ))
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Editor */}
+        <div className="rounded-lg bg-white p-4">
+
+          {/* Header editor */}
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <h3 className="text-sm font-bold">
+              {isCreating ? "Tạo template mới" : detail ? `Chỉnh sửa: ${detail.name}` : "Chọn template"}
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {/* Activate */}
+              {detail && !isCreating && !isActive && (
+                <button
+                  onClick={handleActivate}
+                  disabled={activating}
+                  className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  {activating ? "Đang activate..." : "🚀 Activate"}
+                </button>
+              )}
+              {/* Archive */}
+              {detail && !isCreating && isActive && (
+                <button
+                  onClick={handleArchive}
+                  className="rounded border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-500 hover:bg-zinc-50"
+                >
+                  Archive
+                </button>
+              )}
+              {/* Delete */}
+              {detail && !isCreating && !isActive && (
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="rounded border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                >
+                  {deleting ? "Đang xóa..." : "Xóa"}
+                </button>
+              )}
+              {/* Save */}
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                {saving ? "Đang lưu..." : detail && !isCreating ? "Lưu thay đổi" : "Tạo template"}
+              </button>
+            </div>
+          </div>
+
+          {isActive && (
+            <div className="mb-4 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+              ✓ Template này đang ACTIVE và được dùng trên mobile. Để chỉnh sửa, hãy tạo phiên bản mới rồi activate.
+            </div>
+          )}
+
+          {/* Fields */}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+              placeholder="Tên template (VD: Thỏa thuận tiết kiệm v2.0)"
+              className="rounded border p-2 text-sm" />
+            <input value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
+              placeholder="Mã code (VD: SAVING_AGREEMENT)"
+              className="rounded border p-2 text-sm font-mono" />
+            <input value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+              placeholder="Mô tả ngắn"
+              className="rounded border p-2 text-sm" />
+            <div className="flex gap-2">
+              <select value={form.services} onChange={(e) => setForm((p) => ({ ...p, services: e.target.value }))}
+                className="w-full rounded border p-2 text-sm">
+                <option value="saving">Tiết kiệm</option>
+                <option value="loan">Vay vốn</option>
                 <option value="general">Khác</option>
               </select>
-              <select
-                value={templateForm.status}
-                onChange={(e) => setTemplateForm((prev) => ({ ...prev, status: e.target.value }))}
-                className="w-full rounded border p-2 text-sm"
-              >
+              <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
+                className="w-full rounded border p-2 text-sm">
+                <option value="draft">DRAFT</option>
                 <option value="active">ACTIVE</option>
                 <option value="archived">ARCHIVED</option>
               </select>
             </div>
           </div>
 
+          {/* Template body */}
           <div className="mt-4">
-            <div className="text-xs font-semibold text-zinc-500">Nội dung template</div>
+            <div className="text-xs font-semibold text-zinc-500 mb-1">Nội dung template</div>
             <textarea
               ref={templateBodyRef}
-              value={templateForm.templateBody}
-              onChange={(e) => setTemplateForm((prev) => ({ ...prev, templateBody: e.target.value }))}
-              rows={10}
-              className="mt-2 w-full rounded border p-3 text-sm"
-              placeholder="Nhập nội dung template..."
+              value={form.templateBody}
+              onChange={(e) => setForm((p) => ({ ...p, templateBody: e.target.value }))}
+              rows={12}
+              className="w-full rounded border p-3 text-sm font-mono"
+              placeholder="Nhập nội dung hợp đồng/thỏa thuận. Dùng {{fieldCode}} cho các trường dữ liệu động..."
+              readOnly={isActive}
             />
           </div>
 
-          {!isSavingAgreement ? (
-            <div className="mt-4">
-              <div className="flex items-center justify-between">
+          {/* Placeholders */}
+          <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
                 <div className="text-xs font-semibold text-zinc-500">Placeholder</div>
-                <button
-                  type="button"
-                  onClick={handleAddPlaceholder}
-                  className="rounded bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-700"
-                >
-                  Thêm placeholder
+                <button onClick={() => setForm((p) => ({
+                  ...p,
+                  placeholders: [...p.placeholders, { fieldCode: "", fieldLabel: "", dataSource: "", sortOrder: p.placeholders.length + 1 }],
+                }))} className="rounded bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-700">
+                  + Thêm
                 </button>
               </div>
-              <div className="mt-3 rounded border border-zinc-100 bg-zinc-50 p-3">
-                <div className="text-xs font-semibold text-zinc-600">Mẫu placeholder có sẵn</div>
-                <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
-                  {PLACEHOLDER_PRESETS.map((group) => (
-                    <div key={group.group} className="rounded border border-zinc-100 bg-white p-2">
-                      <div className="text-xs font-semibold text-zinc-500">{group.group}</div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {group.items.map((item) => (
-                          <button
-                            key={item.fieldCode}
-                            type="button"
+
+              {/* Presets */}
+              <div className="mb-3 rounded border border-zinc-100 bg-zinc-50 p-3">
+                <div className="text-xs font-semibold text-zinc-500 mb-2">Chèn nhanh</div>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {PLACEHOLDER_PRESETS.map((g) => (
+                    <div key={g.group} className="rounded border border-zinc-100 bg-white p-2">
+                      <div className="text-[11px] font-semibold text-zinc-500 mb-1">{g.group}</div>
+                      <div className="flex flex-wrap gap-1">
+                        {g.items.map((item) => (
+                          <button key={item.fieldCode}
                             onClick={() => handleAddPreset(item)}
-                            className="rounded-full border border-zinc-200 px-2 py-1 text-[11px] text-zinc-700 hover:bg-zinc-100"
-                          >
+                            className="rounded-full border border-zinc-200 px-2 py-0.5 text-[11px] text-zinc-700 hover:bg-zinc-100">
                             {item.fieldLabel}
                           </button>
                         ))}
@@ -762,75 +713,110 @@ export default function ContractsPage() {
                   ))}
                 </div>
               </div>
-              <div className="mt-2 flex flex-col gap-2">
-                {templateForm.placeholders.length === 0 ? (
-                  <div className="text-xs text-zinc-400">Chưa có placeholder.</div>
-                ) : (
-                  templateForm.placeholders.map((item, index) => (
-                    <div key={`placeholder-${index}`} className="grid grid-cols-1 gap-2 rounded border border-zinc-100 p-2 md:grid-cols-5">
-                      <input
-                        value={item.fieldCode ?? ""}
-                        onChange={(e) => handlePlaceholderChange(index, "fieldCode", e.target.value)}
-                        placeholder="Mã (VD: customer_name)"
-                        className="rounded border p-2 text-xs"
-                      />
-                      <input
-                        value={item.fieldLabel ?? ""}
-                        onChange={(e) => handlePlaceholderChange(index, "fieldLabel", e.target.value)}
-                        placeholder="Nhãn hiển thị"
-                        className="rounded border p-2 text-xs"
-                      />
-                      <input
-                        value={item.dataSource ?? ""}
-                        onChange={(e) => handlePlaceholderChange(index, "dataSource", e.target.value)}
-                        placeholder="Nguồn dữ liệu"
-                        className="rounded border p-2 text-xs"
-                      />
-                      <input
-                        value={item.sortOrder ?? index + 1}
-                        onChange={(e) => handlePlaceholderChange(index, "sortOrder", e.target.value)}
-                        placeholder="Thứ tự"
-                        className="rounded border p-2 text-xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePlaceholder(index)}
-                        className="rounded bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-600"
-                      >
-                        Xóa
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="mt-4 rounded border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-              Thỏa thuận tiết kiệm không cần placeholder, chỉ dùng một bản nội dung cố định.
-            </div>
-          )}
 
-          {!isSavingAgreement ? (
-            <div className="mt-6 rounded border border-dashed border-zinc-200 p-3">
-              <div className="text-xs font-semibold text-zinc-600">Upload template DOCX (hợp đồng vay)</div>
-              <form onSubmit={handleUploadTemplate} className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
-                <input name="name" placeholder="Tên template" className="rounded border p-2 text-sm" />
-                <input name="code" placeholder="Mã template" className="rounded border p-2 text-sm" />
+              {/* Danh sách placeholder */}
+              {form.placeholders.length === 0
+                ? <div className="text-xs text-zinc-400">Chưa có placeholder.</div>
+                : form.placeholders.map((p, i) => (
+                  <div key={i} className="mb-2 grid grid-cols-1 gap-2 rounded border border-zinc-100 p-2 md:grid-cols-5">
+                    <input value={p.fieldCode} onChange={(e) => setForm((prev) => {
+                      const pl = [...prev.placeholders]; pl[i] = { ...pl[i], fieldCode: e.target.value }; return { ...prev, placeholders: pl };
+                    })} placeholder="field_code" className="rounded border p-1.5 text-xs font-mono" />
+                    <input value={p.fieldLabel ?? ""} onChange={(e) => setForm((prev) => {
+                      const pl = [...prev.placeholders]; pl[i] = { ...pl[i], fieldLabel: e.target.value }; return { ...prev, placeholders: pl };
+                    })} placeholder="Nhãn hiển thị" className="rounded border p-1.5 text-xs" />
+                    <input value={p.dataSource ?? ""} onChange={(e) => setForm((prev) => {
+                      const pl = [...prev.placeholders]; pl[i] = { ...pl[i], dataSource: e.target.value }; return { ...prev, placeholders: pl };
+                    })} placeholder="Nguồn dữ liệu" className="rounded border p-1.5 text-xs" />
+                    <input type="number" value={p.sortOrder ?? i + 1} onChange={(e) => setForm((prev) => {
+                      const pl = [...prev.placeholders]; pl[i] = { ...pl[i], sortOrder: Number(e.target.value) }; return { ...prev, placeholders: pl };
+                    })} placeholder="Thứ tự" className="rounded border p-1.5 text-xs" />
+                    <button onClick={() => setForm((prev) => ({ ...prev, placeholders: prev.placeholders.filter((_, idx) => idx !== i) }))}
+                      className="rounded bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-600">Xóa</button>
+                  </div>
+                ))
+              }
+            </div>
+
+          {/* Upload DOCX */}
+          <div className="mt-6 rounded border border-dashed border-zinc-200 p-4">
+              <div className="text-xs font-semibold text-zinc-600 mb-3">Upload template .docx</div>
+              <form onSubmit={handleUpload} className="grid grid-cols-1 gap-2 md:grid-cols-4">
+                <input name="name" placeholder="Tên" className="rounded border p-2 text-sm" />
+                <input name="code" placeholder="Mã code" className="rounded border p-2 text-sm font-mono" />
                 <input name="description" placeholder="Mô tả" className="rounded border p-2 text-sm" />
                 <select name="services" className="rounded border p-2 text-sm">
-                  <option value="loan">Hợp đồng vay</option>
-                  <option value="general">Khác</option>
+                  <option value="loan">Vay vốn</option>
+                  <option value="saving">Tiết kiệm</option>
                 </select>
-                <input type="file" accept=".docx" className="col-span-1 md:col-span-3" />
-                <button className="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white" disabled={uploadingTemplate}>
-                  {uploadingTemplate ? "Đang tải..." : "Upload"}
+                <input type="file" accept=".docx" className="col-span-1 md:col-span-3 text-sm" />
+                <button className="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white" disabled={uploading}>
+                  {uploading ? "Đang tải..." : "Upload"}
                 </button>
               </form>
-              <div className="mt-2 text-xs text-zinc-400">
-                Sau khi upload, bạn có thể chỉnh sửa nội dung và placeholder ngay trong form bên trên.
-              </div>
-            </div>
-          ) : null}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Danh sách khách hàng đã ký ──────────────────────────────────────── */}
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[280px,1fr]">
+        <div className="rounded-lg bg-white p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold">Khách hàng đã ký</h3>
+            <span className="text-xs text-zinc-400">{customers.length} KH</span>
+          </div>
+          <input value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)}
+            placeholder="Tìm theo tên, SĐT" className="mb-3 w-full rounded border p-2 text-sm" />
+          <div className="max-h-[400px] overflow-y-auto flex flex-col gap-1">
+            {loadingDocs ? <div className="text-xs text-zinc-400">Đang tải...</div>
+              : customers.length === 0 ? <div className="text-xs text-zinc-400">Chưa có dữ liệu.</div>
+              : customers.map((c) => (
+                <button key={c.key} onClick={() => setSelectedCustomerKey(c.key)}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                    selectedCustomerKey === c.key ? "border-blue-200 bg-blue-50" : "border-transparent hover:bg-zinc-50"
+                  }`}>
+                  <div className="font-semibold text-zinc-900">{c.name}</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-zinc-500">{c.phone}</span>
+                    <span className="text-xs text-zinc-400">{c.count} hợp đồng</span>
+                  </div>
+                </button>
+              ))}
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-white p-4">
+          <h3 className="text-sm font-bold mb-1">Hợp đồng của khách hàng</h3>
+          <div className="text-xs text-zinc-400 mb-4">Chọn khách hàng bên trái để xem và tải file hợp đồng.</div>
+          <div className="flex flex-col gap-3">
+            {loadingDocs ? <div className="text-xs text-zinc-400">Đang tải...</div>
+              : selectedAcceptances.length === 0 ? <div className="text-xs text-zinc-400">Chưa có hợp đồng.</div>
+              : selectedAcceptances.map((a) => {
+                const contract = a.contractNumber ? contractMap.get(a.contractNumber) : undefined;
+                return (
+                  <div key={`${a.referenceType}-${a.referenceId}-${a.contractNumber}`}
+                    className="rounded-lg border border-zinc-100 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-semibold">{a.contractNumber ?? "Chưa có số"}</div>
+                        <div className="text-xs text-zinc-500">{a.templateName ?? a.templateCode ?? "—"}</div>
+                      </div>
+                      <span className="text-xs text-zinc-500">{a.acceptanceStatus ?? "—"}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-400">Ký: {fmt(a.acceptedAt)}</div>
+                    <div className="mt-2">
+                      {contract?.fileUrl
+                        ? <a href={contract.fileUrl} target="_blank" rel="noreferrer"
+                            className="inline-flex rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white">
+                            Tải file
+                          </a>
+                        : <span className="text-xs text-zinc-400">Chưa có file</span>
+                      }
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
         </div>
       </div>
     </AdminShell>

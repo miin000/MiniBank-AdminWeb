@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import AdminShell from "@/src/app/components/admin-shell";
 import {
@@ -22,6 +22,7 @@ import {
   updateFaqCategory,
   updateFaqItem,
 } from "@/src/lib/api/chatbot-admin";
+import { backendWsUrl, MiniStompClient } from "@/src/lib/stomp-client";
 
 type Tab = "faq" | "chat";
 
@@ -75,6 +76,7 @@ export default function ChatbotManagementPage() {
   const [selectedConversation, setSelectedConversation] = useState<AdminChatConversationDetail | null>(null);
   const [replyText, setReplyText] = useState("");
   const [noteText, setNoteText] = useState("");
+  const stompRef = useRef<MiniStompClient | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -133,6 +135,76 @@ export default function ChatbotManagementPage() {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    const client = new MiniStompClient(backendWsUrl());
+    stompRef.current = client;
+    client.connect();
+    const unsubscribeWaiting = client.subscribe("/topic/chat-waiting", (body) => {
+      const event = body as {
+        conversationId?: number;
+        userId?: number;
+        customerName?: string | null;
+        customerPhone?: string | null;
+        customerRank?: string | null;
+        status?: string;
+        startedAt?: string;
+        escalatedAt?: string | null;
+        assignedAdminUserId?: number | null;
+        assignedAdminUsername?: string | null;
+        lastMessagePreview?: string | null;
+      };
+      if (!event.conversationId) return;
+      setConversations((prev) => {
+        const next: AdminChatConversationSummary = {
+          id: event.conversationId!,
+          userId: event.userId ?? 0,
+          userName: event.customerName ?? null,
+          userPhone: event.customerPhone ?? null,
+          customerRank: event.customerRank ?? null,
+          status: event.status ?? "WAITING_AGENT",
+          lastIntent: null,
+          lastConfidence: null,
+          startedAt: event.startedAt ?? new Date().toISOString(),
+          escalatedAt: event.escalatedAt ?? null,
+          lastMessagePreview: event.lastMessagePreview ?? null,
+          assignedAdminUserId: event.assignedAdminUserId ?? null,
+          assignedAdminUsername: event.assignedAdminUsername ?? null,
+        };
+        return [next, ...prev.filter((item) => item.id !== next.id)];
+      });
+      setSelectedConversation((current) => {
+        if (!current || current.id !== event.conversationId) return current;
+        return {
+          ...current,
+          status: event.status ?? current.status,
+          assignedAdminUserId: event.assignedAdminUserId ?? current.assignedAdminUserId,
+          assignedAdminUsername: event.assignedAdminUsername ?? current.assignedAdminUsername,
+        };
+      });
+    });
+
+    return () => {
+      unsubscribeWaiting();
+      client.disconnect();
+      stompRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedConversation || !stompRef.current) return;
+    const conversationId = selectedConversation.id;
+    return stompRef.current.subscribe(`/topic/chat/${conversationId}`, (body) => {
+      const message = body as AdminChatConversationDetail["messages"][number];
+      if (!message?.id) return;
+      setSelectedConversation((current) => {
+        if (!current || current.id !== conversationId || current.messages.some((item) => item.id === message.id)) {
+          return current;
+        }
+        return { ...current, messages: [...current.messages, message] };
+      });
+    });
+  }, [selectedConversation?.id]);
 
   useEffect(() => {
     let alive = true;

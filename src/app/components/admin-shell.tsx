@@ -122,6 +122,21 @@ const navItems: NavItem[] = [
         href: "/transactions/large-approval",
         requiredRoles: ADMIN_ONLY,
       },
+      {
+        label: "Tai khoan ngan hang",
+        href: "/transactions/bank-accounts",
+        requiredRoles: ADMIN_ONLY,
+      },
+      {
+        label: "Giao dich",
+        href: "/transactions/list",
+        requiredRoles: ADMIN_ONLY,
+      },
+      {
+        label: "Bien dong so du",
+        href: "/transactions/balance-fluctuations",
+        requiredRoles: ADMIN_ONLY,
+      },
     ],
   },
   {
@@ -152,6 +167,26 @@ const navItems: NavItem[] = [
       {
         label: "Bac lai suat vay",
         href: "/financial-products/loans/tiers",
+        requiredRoles: STAFF_ACCESS,
+      },
+      {
+        label: "Yeu cau tat toan so",
+        href: "/financial-products/savings/closure-requests",
+        requiredRoles: STAFF_ACCESS,
+      },
+      {
+        label: "Ho so vay",
+        href: "/financial-products/loans/applications",
+        requiredRoles: STAFF_ACCESS,
+      },
+      {
+        label: "Khoan vay",
+        href: "/financial-products/loans/contracts",
+        requiredRoles: STAFF_ACCESS,
+      },
+      {
+        label: "Lich tra no",
+        href: "/financial-products/loans/repayments",
         requiredRoles: STAFF_ACCESS,
       },
     ],

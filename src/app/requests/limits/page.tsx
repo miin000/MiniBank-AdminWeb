@@ -143,8 +143,8 @@ export default function LimitsPage() {
                 {toast && (
                     <div
                         className={`fixed top-6 right-6 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${toast.type === "success"
-                                ? "bg-green-500 text-white"
-                                : "bg-red-500 text-white"
+                            ? "bg-green-500 text-white"
+                            : "bg-red-500 text-white"
                             }`}
                     >
                         {toast.msg}
@@ -158,8 +158,8 @@ export default function LimitsPage() {
                                 setActiveTab("pending")
                             }
                             className={`px-6 py-4 text-sm font-medium transition-colors relative ${activeTab === "pending"
-                                    ? "text-blue-600"
-                                    : "text-gray-500 hover:text-gray-700"
+                                ? "text-blue-600"
+                                : "text-gray-500 hover:text-gray-700"
                                 }`}
                         >
                             Yêu cầu nâng hạn mức (
@@ -175,8 +175,8 @@ export default function LimitsPage() {
                                 setActiveTab("dashboard")
                             }
                             className={`px-6 py-4 text-sm font-medium transition-colors relative ${activeTab === "dashboard"
-                                    ? "text-blue-600"
-                                    : "text-gray-500 hover:text-gray-700"
+                                ? "text-blue-600"
+                                : "text-gray-500 hover:text-gray-700"
                                 }`}
                         >
                             Bảng điều khiển hạn mức

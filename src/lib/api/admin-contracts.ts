@@ -32,6 +32,7 @@ export type TemplateSummary = {
   description?: string | null;
   services?: string | null;
   status?: string | null;
+  templateBody?: string | null;
   templateFileUrl?: string | null;
   placeholderCount?: number | null;
   createdAt?: string | null;
@@ -79,11 +80,11 @@ export type ContractAcceptanceSummary = {
 
 export async function listContractTemplates(service?: string): Promise<TemplateSummary[]> {
   const query = service ? `?service=${encodeURIComponent(service)}` : "";
-  return requestJson<TemplateSummary[]>(`/api/admin/contracts/templates${query}`);
+  return requestJson<TemplateSummary[]>(`/api/admin/contract-templates${query}`);
 }
 
 export async function getContractTemplate(id: number): Promise<TemplateDetail> {
-  return requestJson<TemplateDetail>(`/api/admin/contracts/templates/${id}`);
+  return requestJson<TemplateDetail>(`/api/admin/contract-templates/${id}`);
 }
 
 export async function listGeneratedContracts(): Promise<GeneratedContract[]> {
@@ -105,7 +106,7 @@ export async function createContractTemplate(payload: {
   templateFileUrl?: string | null;
   placeholders?: TemplatePlaceholder[];
 }): Promise<TemplateDetail> {
-  return requestJson<TemplateDetail>("/api/admin/contracts/templates", {
+  return requestJson<TemplateDetail>("/api/admin/contract-templates", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -121,9 +122,27 @@ export async function updateContractTemplate(id: number, payload: {
   templateFileUrl?: string | null;
   placeholders?: TemplatePlaceholder[];
 }): Promise<TemplateDetail> {
-  return requestJson<TemplateDetail>(`/api/admin/contracts/templates/${id}`, {
+  return requestJson<TemplateDetail>(`/api/admin/contract-templates/${id}`, {
     method: "PUT",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function activateContractTemplate(id: number): Promise<TemplateDetail> {
+  return requestJson<TemplateDetail>(`/api/admin/contract-templates/${id}/activate`, {
+    method: "PATCH",
+  });
+}
+
+export async function archiveContractTemplate(id: number): Promise<TemplateDetail> {
+  return requestJson<TemplateDetail>(`/api/admin/contract-templates/${id}/archive`, {
+    method: "PATCH",
+  });
+}
+
+export async function deleteContractTemplate(id: number): Promise<void> {
+  await requestJson<void>(`/api/admin/contract-templates/${id}`, {
+    method: "DELETE",
   });
 }
 
@@ -158,7 +177,7 @@ export async function uploadContractTemplate(payload: {
   if (payload.description) body.append("description", payload.description);
   if (payload.services) body.append("services", payload.services);
 
-  const res = await fetch(`${BASE_URL}/api/admin/contracts/templates/upload`, {
+  const res = await fetch(`${BASE_URL}/api/admin/contract-templates/upload`, {
     method: "POST",
     headers: getAdminAuthHeader(),
     body,
