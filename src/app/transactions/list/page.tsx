@@ -1,7 +1,9 @@
 "use client";
-
+//install recharts
 import { useEffect, useState } from "react";
 import AdminShell from "../../components/admin-shell";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+
 type TransactionOverview = {
     totalTransactions: number;
     completedTransactions: number;
@@ -69,6 +71,37 @@ export default function AdminTransactionsListPage() {
         if (e.key === "Enter") loadData();
     };
 
+    // Hàm xử lý: Tự động gom nhóm số tiền các giao dịch thành công (completed) từ DB theo mốc giờ
+    const getChartData = () => {
+        const timeSlots = ["00:00", "03:00", "06:00", "09:00", "12:00", "15:00", "18:00", "21:00"];
+        const slotValues: { [key: string]: number } = {
+            "00:00": 0, "03:00": 0, "06:00": 0, "09:00": 0, "12:00": 0, "15:00": 0, "18:00": 0, "21:00": 0
+        };
+
+        transactions.forEach(tx => {
+            if (tx.status?.toLowerCase() === "completed") {
+                const hours = new Date(tx.createdAt).getHours();
+                let slot = "00:00";
+
+                if (hours >= 21) slot = "21:00";
+                else if (hours >= 18) slot = "18:00";
+                else if (hours >= 15) slot = "15:00";
+                else if (hours >= 12) slot = "12:00";
+                else if (hours >= 9) slot = "09:00";
+                else if (hours >= 6) slot = "06:00";
+                else if (hours >= 3) slot = "03:00";
+
+                // Quy đổi ra đơn vị Triệu đồng để biểu đồ hiển thị thanh thoát, không bị tràn hàng số dài
+                slotValues[slot] += (tx.amount || 0) / 1000000;
+            }
+        });
+
+        return timeSlots.map(slot => ({
+            time: slot,
+            amount: Math.round(slotValues[slot] * 100) / 100 // Làm tròn 2 chữ số thập phân
+        }));
+    };
+
     return (
         <AdminShell title="Lịch sử giao dịch" subtitle="Giám sát và kiểm toán toàn bộ luồng giao dịch tài chính trên hệ thống Core">
 
@@ -85,6 +118,33 @@ export default function AdminTransactionsListPage() {
                 <div className="bg-white p-4 rounded-xl border border-black/5 shadow-3xs">
                     <div className="text-[11px] font-bold text-zinc-400 uppercase font-mono">Tổng doanh số thành công</div>
                     <div className="text-xl font-black text-blue-600 mt-1">{(overview?.totalCompletedAmount || 0).toLocaleString()} đ</div>
+                </div>
+            </div>
+
+            {/* Khối Biểu đồ biến động dòng tiền theo giờ - Lấy dữ liệu thực tế từ Database */}
+            <div className="bg-white p-6 rounded-xl border border-black/5 shadow-3xs mb-6">
+                <h3 className="text-xs font-bold text-zinc-800 mb-4 uppercase tracking-wider">Biểu đồ giao dịch theo giờ (Triệu đ)</h3>
+                <div className="w-full h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={getChartData()} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
+                            <XAxis dataKey="time" stroke="#a1a1aa" fontSize={10} tickLine={false} />
+                            <YAxis stroke="#a1a1aa" fontSize={10} tickLine={false} axisLine={false} />
+                            <Tooltip
+                                contentStyle={{ backgroundColor: "#18181b", borderRadius: "8px", border: "none" }}
+                                labelStyle={{ color: "#a1a1aa", fontSize: "10px", fontWeight: "bold" }}
+                                itemStyle={{ color: "#ffffff", fontSize: "11px" }}
+                                formatter={(value: any) => [`${value.toLocaleString()} Triệu đ`, "Doanh số giao dịch"]}
+                            />
+                            <Line
+                                type="monotone"
+                                dataKey="amount"
+                                stroke="#3b82f6"
+                                strokeWidth={2.5}
+                                dot={{ r: 3, fill: "#3b82f6", strokeWidth: 2 }}
+                                activeDot={{ r: 5 }}
+                            />
+                        </LineChart>
+                    </ResponsiveContainer>
                 </div>
             </div>
 
