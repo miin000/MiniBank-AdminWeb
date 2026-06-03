@@ -129,8 +129,9 @@ export default function SavingClosureRequestsPage() {
 
         try {
             const data = await apiFetch<any[]>(
-                "/api/admin/savings/closure-requests?status=closure_requested"
+                "/api/admin/financial-products/saving-settlement-requests"
             );
+            console.log("SETTLEMENT REQUESTS", data);
 
             const mapped: SavingClosureRequest[] =
                 data.map((item) => ({
@@ -578,6 +579,7 @@ export default function SavingClosureRequestsPage() {
 
                                                 <button
                                                     onClick={() => {
+                                                        console.log(selectedRequest);
                                                         setSelectedRequest(
                                                             req
                                                         );
@@ -602,6 +604,134 @@ export default function SavingClosureRequestsPage() {
                     </table>
                 </div>
             </section>
+            {showDetailModal && selectedRequest && (
+
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                    <div className="max-h-[90vh] w-[900px] overflow-y-auto rounded-2xl bg-white shadow-xl">
+
+                        <div className="flex items-center justify-between border-b p-6">
+                            <h2 className="text-2xl font-bold">
+                                Chi tiết yêu cầu tất toán
+                            </h2>
+
+                            <button
+                                onClick={() =>
+                                    setShowDetailModal(false)
+                                }
+                                className="text-2xl"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="space-y-6 p-6">
+
+                            <div className="grid grid-cols-2 gap-10">
+
+                                <div>
+                                    <h3 className="mb-4 text-xl font-semibold">
+                                        Thông tin khách hàng
+                                    </h3>
+
+                                    <p>
+                                        <b>Họ tên:</b>{" "}
+                                        {selectedRequest.customerName}
+                                    </p>
+
+                                    <p>
+                                        <b>Mã KH:</b>{" "}
+                                        {selectedRequest.customerId}
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <h3 className="mb-4 text-xl font-semibold">
+                                        Thông tin sổ tiết kiệm
+                                    </h3>
+
+                                    <p>
+                                        <b>Mã sổ:</b>{" "}
+                                        {selectedRequest.savingCode}
+                                    </p>
+
+                                    <p>
+                                        <b>Sản phẩm:</b>{" "}
+                                        {selectedRequest.productName}
+                                    </p>
+
+                                    <p>
+                                        <b>Ngày mở:</b>{" "}
+                                        {selectedRequest.openDate}
+                                    </p>
+
+                                    <p>
+                                        <b>Ngày đáo hạn:</b>{" "}
+                                        {selectedRequest.maturityDate}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="rounded-2xl bg-violet-50 p-6">
+                                <h3 className="mb-4 text-xl font-semibold">
+                                    Tính toán tất toán
+                                </h3>
+
+                                <div className="space-y-3">
+
+                                    <div className="flex justify-between">
+                                        <span>Số tiền gốc</span>
+
+                                        <span>
+                                            {formatCurrency(
+                                                selectedRequest.principalAmount
+                                            )}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex justify-between">
+                                        <span>Lãi tạm tính</span>
+
+                                        <span className="text-green-600">
+                                            {formatCurrency(
+                                                selectedRequest.estimatedInterest
+                                            )}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex justify-between">
+                                        <span>Tổng nhận</span>
+
+                                        <span className="font-bold text-violet-700">
+                                            {formatCurrency(
+                                                selectedRequest.totalAmount
+                                            )}
+                                        </span>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-4">
+
+                                <button
+                                    className="rounded-xl bg-red-50 px-6 py-3 font-medium text-red-600"
+                                >
+                                    Từ chối
+                                </button>
+
+                                <button
+                                    className="rounded-xl bg-green-600 px-6 py-3 font-medium text-white"
+                                >
+                                    Phê duyệt
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+            )}
         </AdminShell>
     );
 }
