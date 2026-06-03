@@ -54,6 +54,7 @@ export default function LimitsPage() {
                 undefined,
                 "limit_change"
             );
+            console.log("SERVICE REQUESTS:", data);
 
             setRequests(data);
         } catch (e: unknown) {

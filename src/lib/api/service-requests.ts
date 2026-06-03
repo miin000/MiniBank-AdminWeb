@@ -35,14 +35,17 @@ export interface ServiceRequestDetail extends ServiceRequestSummary {
     limitChange: LimitChange | null;
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
 
 function getAuthHeader(): HeadersInit {
     if (typeof window === "undefined") return {};
-    const token = localStorage.getItem("token");
-    return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
+    const token = localStorage.getItem("adminToken");
+
+    return token
+        ? { Authorization: `Bearer ${token}` }
+        : {};
+}
 export async function fetchServiceRequests(
     status?: string,
     type?: string
