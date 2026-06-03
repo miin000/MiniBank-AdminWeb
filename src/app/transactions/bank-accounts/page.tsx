@@ -1,390 +1,389 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Search, ChevronDown, Eye, QrCode, PlusCircle, MinusCircle, X, CheckCircle2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import AdminShell from "../../components/admin-shell";
 
-// --- Interface cấu trúc dữ liệu theo hình ảnh Figma ---
-interface BankAccount {
+type BankAccountItem = {
     id: number;
-    accountNumber: string;    // STK
-    accountName: string;      // Tên tài khoản
-    customerName: string;     // Chủ tài khoản
-    accountType: "Thanh toán" | "Tiết kiệm" | "Doanh nghiệp";
-    actualBalance: number;    // Số dư thực tế
-    heldBalance: number;      // Đang tạm giữ
-    availableBalance: number; // Số dư khả dụng
-    status: "Hoạt động" | "Đã khóa";
-    openedDate: string;
-    dailyLimit: number;
-    monthlyLimit: number;
-}
+    accountNumber: string;
+    accountName: string;
+    customerName: string;
+    accountType: string;
+    actualBalance: number;
+    holdingBalance: number;
+    availableBalance: number;
+    status: string;
+    limitPerDay: number;
+    createdAt: string;
+};
 
-export default function BankAccountsPage() {
-    // --- States quản lý danh sách và bộ lọc ---
-    const [accounts, setAccounts] = useState<BankAccount[]>([]);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [statusFilter, setStatusFilter] = useState("ALL");
-    const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+export default function AdminBankAccountsPage() {
+    const [accounts, setAccounts] = useState<BankAccountItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState("");
+    const [statusFilter, setStatusFilter] = useState("");
 
-    // --- States quản lý Modals (Popup) ---
-    const [selectedAccount, setSelectedAccount] = useState<BankAccount | null>(null);
-    const [activeModal, setActiveModal] = useState<"DETAIL" | "QR" | "DEPOSIT" | "WITHDRAW" | null>(null);
-
-    // --- States xử lý số tiền Test ---
-    const [testAmount, setTestAmount] = useState<string>("");
-
-    // --- State quản lý thông báo Toast ---
+    // Trạng thái điều khiển Modals và xử lý dữ liệu dòng tiền
+    const [activeModal, setActiveModal] = useState<"detail" | "qr" | "deposit" | "withdraw" | null>(null);
+    const [selectedAccount, setSelectedAccount] = useState<BankAccountItem | null>(null);
+    const [amountInput, setAmountInput] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-    // --- Khởi tạo dữ liệu mẫu khớp 100% với màn hình của bạn ---
-    useEffect(() => {
-        const mockData: BankAccount[] = [
-            {
-                id: 1,
-                accountNumber: "1234567890",
-                accountName: "Tài khoản thanh toán",
-                customerName: "Nguyễn Văn A",
-                accountType: "Thanh toán",
-                actualBalance: 300000000,
-                heldBalance: 250000000,
-                availableBalance: 50000000,
-                status: "Hoạt động",
-                openedDate: "2026-01-15",
-                dailyLimit: 100000000,
-                monthlyLimit: 500000000,
-            },
-            {
-                id: 2,
-                accountNumber: "0987654321",
-                accountName: "Tài khoản tiết kiệm",
-                customerName: "Nguyễn Văn A",
-                accountType: "Tiết kiệm",
-                actualBalance: 100000000,
-                heldBalance: 0,
-                availableBalance: 100000000,
-                status: "Hoạt động",
-                openedDate: "2026-02-10",
-                dailyLimit: 0,
-                monthlyLimit: 0,
-            },
-            {
-                id: 3,
-                accountNumber: "5655566677",
-                accountName: "Tài khoản thanh toán",
-                customerName: "Trần Thị B",
-                accountType: "Thanh toán",
-                actualBalance: 25000000,
-                heldBalance: 0,
-                availableBalance: 25000000,
-                status: "Hoạt động",
-                openedDate: "2026-03-05",
-                dailyLimit: 50000000,
-                monthlyLimit: 200000000,
-            },
-            {
-                id: 4,
-                accountNumber: "8888988800",
-                accountName: "Tài khoản doanh nghiệp",
-                customerName: "Lê Văn C",
-                accountType: "Doanh nghiệp",
-                actualBalance: 500000000,
-                heldBalance: 0,
-                availableBalance: 500000000,
-                status: "Hoạt động",
-                openedDate: "2025-11-20",
-                dailyLimit: 2000000000,
-                monthlyLimit: 10000000000,
-            },
-        ];
-        setAccounts(mockData);
-        setLoading(false);
-    }, []);
-
-    // --- Trigger hiển thị Toast thông báo ---
-    const showToast = (message: string) => {
-        setToastMessage(message);
+    const showToast = (msg: string) => {
+        setToastMessage(msg);
         setTimeout(() => setToastMessage(null), 4000);
     };
 
-    // --- Hành động xử lý Số dư Test (Nạp/Trừ tiền) ---
-    const handleUpdateBalance = (actionType: "ADD" | "SUB") => {
-        const numAmount = parseFloat(testAmount);
-        if (!numAmount || numAmount <= 0 || !selectedAccount) return;
+    // 1. ĐỒNG BỘ TẢI DANH SÁCH TÀI KHOẢN TỪ DATABASE
+    const loadData = async () => {
+        try {
+            setLoading(true);
+            const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+            const headers = { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" };
 
-        setAccounts(prev => prev.map(acc => {
-            if (acc.id === selectedAccount.id) {
-                const diff = actionType === "ADD" ? numAmount : -numAmount;
-                const nextActual = acc.actualBalance + diff;
-                const nextAvailable = nextActual - acc.heldBalance;
-                return {
-                    ...acc,
-                    actualBalance: nextActual,
-                    availableBalance: nextAvailable
-                };
+            let url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/accounts`;
+            const params = new URLSearchParams();
+            if (search) params.append("q", search);
+            if (statusFilter) params.append("status", statusFilter);
+            if (params.toString()) url += `?${params.toString()}`;
+
+            const res = await fetch(url, { headers });
+            if (res.ok) {
+                const data = await res.json();
+
+                const formattedData = (Array.isArray(data) ? data : []).map((item: any) => {
+                    // Cơ chế bóc tách tên thông minh tránh lỗi hiển thị cứng "Nguyễn Văn A"
+                    const resolvedOwnerName =
+                        item.customerName ||
+                        item.accountName ||
+                        item.fullName ||
+                        item.user?.fullName ||
+                        item.customer?.fullName ||
+                        "Khách hàng hệ thống";
+
+                    return {
+                        id: item.id,
+                        accountNumber: item.accountNumber || "---",
+                        accountName: item.accountName || "Tài khoản thanh toán",
+                        customerName: resolvedOwnerName,
+                        accountType: item.accountType || "payment",
+                        actualBalance: item.balance || item.actualBalance || 0,
+                        holdingBalance: item.holdingBalance || 0,
+                        availableBalance: item.availableBalance || (item.balance ? (item.balance - (item.holdingBalance || 0)) : 0),
+                        status: item.status || "ACTIVE",
+                        limitPerDay: item.limitPerDay || 100000000,
+                        createdAt: item.createdAt || "2026-01-15"
+                    };
+                });
+                setAccounts(formattedData);
             }
-            return acc;
-        }));
-
-        showToast(`${actionType === "ADD" ? "Nạp tiền" : "Trừ tiền"} tài khoản ${selectedAccount.accountNumber} thành công!`);
-        closeModal();
+        } catch (error) {
+            console.error("Lỗi đồng bộ danh sách tài khoản ngân hàng:", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    // --- Hành động Toggle trạng thái tài khoản Khóa/Mở ---
-    const toggleAccountStatus = (account: BankAccount) => {
-        setAccounts(prev => prev.map(acc => {
-            if (acc.id === account.id) {
-                const nextStatus = acc.status === "Hoạt động" ? "Đã khóa" : "Hoạt động";
-                showToast(`${nextStatus === "Đã khóa" ? "Đã khóa" : "Đã mở khóa"} tài khoản ${acc.accountNumber}`);
-                return { ...acc, status: nextStatus };
+    // Tự động reload danh sách khi thay đổi bộ lọc trạng thái nhanh
+    useEffect(() => {
+        loadData();
+    }, [statusFilter]);
+
+    const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter") loadData();
+    };
+
+    // 2. CHỨC NĂNG KHÓA / MỞ KHÓA (Cơ chế quét kép PUT & PATCH bao vây lỗi 405)
+    const toggleLockAccount = async (acc: BankAccountItem) => {
+        try {
+            const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+            const isLocked = acc.status === "LOCKED" || acc.status === "Đang khóa";
+            const newStatus = isLocked ? "ACTIVE" : "LOCKED";
+
+            const payload = { status: newStatus };
+
+            // Thử nghiệm cấu trúc 1: Gửi qua PUT Method phổ thông
+            let res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/accounts/${acc.accountNumber}/status`, {
+                method: "PUT",
+                headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            // Fallback cấu trúc 2: Nếu Server chặn 405/404, tự động chuyển đổi sang PATCH Method hoặc Request Parameter
+            if (!res.ok) {
+                res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/accounts/${acc.accountNumber}/status`, {
+                    method: "PATCH",
+                    headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
             }
-            return acc;
-        }));
+
+            if (res.ok) {
+                showToast(isLocked ? `Mở khóa thành công tài khoản ${acc.accountNumber}` : `Đã khóa thành công tài khoản ${acc.accountNumber}`);
+                loadData();
+            } else {
+                showToast("Lỗi cập nhật trạng thái. Hãy kiểm tra cấu trúc API Server.");
+            }
+        } catch (error) {
+            console.error("Lỗi thực thi khóa tài khoản:", error);
+        }
     };
 
-    const closeModal = () => {
-        setActiveModal(null);
-        setSelectedAccount(null);
-        setTestAmount("");
+    // 3. CHỨC NĂNG ĐIỀU CHỈNH SỐ DƯ (Bao vây lỗi 404 bằng cơ chế định tuyến kép)
+    const handleBalanceAdjustment = async () => {
+        const amount = parseFloat(amountInput);
+        if (!amount || amount <= 0 || !selectedAccount) return;
+
+        try {
+            setIsSubmitting(true);
+            const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+            const action = activeModal === "deposit" ? "deposit-test" : "withdraw-test";
+
+            // Cấu hình URL dạng 1: Truyền trực tiếp Số tài khoản vào Path Variable
+            let url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/accounts/${selectedAccount.accountNumber}/${action}`;
+            let res = await fetch(url, {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ amount: amount, description: "Admin can thiệp điều chỉnh số dư số liệu" })
+            });
+
+            // Fallback cấu hình URL dạng 2: Nếu lỗi 404, thử lại bằng cách đẩy Số tài khoản qua Query String (?accountNumber=...)
+            if (!res.ok) {
+                url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/accounts/${action}?accountNumber=${selectedAccount.accountNumber}`;
+                res = await fetch(url, {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ amount: amount })
+                });
+            }
+
+            if (res.ok) {
+                showToast(activeModal === "deposit"
+                    ? `Đã cộng thành công +${amount.toLocaleString()} đ cho ${selectedAccount.customerName}`
+                    : `Đã khấu trừ thành công -${amount.toLocaleString()} đ từ ${selectedAccount.customerName}`
+                );
+                setActiveModal(null);
+                setAmountInput("");
+                loadData();
+            } else {
+                showToast("Giao dịch thất bại. Vui lòng xác minh lại quyền Admin hoặc kết nối.");
+            }
+        } catch (error) {
+            console.error("Lỗi can thiệp dòng tiền test:", error);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    const openModal = (account: BankAccount, type: "DETAIL" | "QR" | "DEPOSIT" | "WITHDRAW") => {
-        setSelectedAccount(account);
-        setActiveModal(type);
-    };
-
-    // --- Xử lý Tìm kiếm & Bộ lọc dữ liệu ---
-    const filteredAccounts = accounts.filter(item => {
-        const matchesSearch =
-            item.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.accountNumber.includes(searchQuery) ||
-            item.accountName.toLowerCase().includes(searchQuery.toLowerCase());
-
-        const matchesStatus = statusFilter === "ALL" || item.status === statusFilter;
-        return matchesSearch && matchesStatus;
-    });
-
-    const totalAccountsCount = accounts.length;
-    const activeCount = accounts.filter(a => a.status === "Hoạt động").length;
-    const lockedCount = accounts.filter(a => a.status === "Đã khóa").length;
-    const totalBalanceSum = accounts.reduce((sum, a) => sum + a.actualBalance, 0);
-
-    const formatVND = (val: number) => {
-        return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(val).replace("₫", "đ");
-    };
+    const totalAccounts = accounts.length;
+    const activeAccounts = accounts.filter(acc => acc.status === "ACTIVE" || acc.status === "Hoạt động").length;
+    const lockedAccounts = accounts.filter(acc => acc.status === "LOCKED" || acc.status === "Đang khóa").length;
+    const totalSystemBalance = accounts.reduce((sum, acc) => sum + acc.actualBalance, 0);
 
     return (
-        <AdminShell title="Quản lý tài khoản ngân hàng" subtitle="Quản lý tất cả tài khoản ngân hàng của khách hàng">
-            <div className="space-y-6 font-sans relative">
+        <AdminShell title="Quản lý tài khoản ngân hàng" subtitle="Quản lý danh sách, số dư và trạng thái bảo mật của hệ thống Core Banking">
 
-                {/* --- TOAST NOTIFICATION POPUP (Góc trên bên phải hình của bạn) --- */}
-                {toastMessage && (
-                    <div className="fixed top-4 right-4 z-50 flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-4 shadow-xl animate-fade-in-down">
-                        <CheckCircle2 className="text-emerald-600" size={18} />
-                        <span className="text-sm font-medium text-emerald-800">{toastMessage}</span>
-                    </div>
-                )}
+            <style jsx global>{`
+                body, input, select, button, table, div, span, h3 {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+                    letter-spacing: -0.01em;
+                }
+            `}</style>
 
-                {/* --- Thanh tìm kiếm nâng cao --- */}
-                <div className="flex flex-col md:flex-row gap-4 justify-between items-end md:items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                    <div className="w-full md:w-2/3">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                            <input
-                                type="text"
-                                placeholder="Tìm theo STK, tên tài khoản, tên khách hàng..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-gray-800"
-                            />
-                        </div>
-                    </div>
+            {/* Thông báo Toast dạng mờ mịn hiện đại */}
+            {toastMessage && (
+                <div className="fixed top-5 right-5 z-50 flex items-center gap-2 bg-zinc-900 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-xl border border-white/10 transition-all">
+                    <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>{toastMessage}</span>
+                </div>
+            )}
 
-                    <div className="w-full md:w-48 relative">
-                        <button
-                            onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                            className="w-full flex items-center justify-between px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm text-gray-700 focus:outline-none text-left"
-                        >
-                            <span>{statusFilter === "ALL" ? "Tất cả trạng thái" : statusFilter}</span>
-                            <ChevronDown size={16} className="text-gray-400" />
-                        </button>
-                        {isStatusDropdownOpen && (
-                            <div className="absolute right-0 top-full mt-1 w-full bg-white border border-gray-100 rounded-lg shadow-xl z-30 py-1">
-                                {["ALL", "Hoạt động", "Đã khóa"].map(opt => (
-                                    <button
-                                        key={opt}
-                                        onClick={() => { setStatusFilter(opt); setIsStatusDropdownOpen(false); }}
-                                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700"
-                                    >
-                                        {opt === "ALL" ? "Tất cả trạng thái" : opt}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+            {/* Thanh tìm kiếm & bộ lọc */}
+            <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-xl border border-black/5 shadow-3xs mb-4">
+                <div className="flex h-9 w-96 items-center gap-2 rounded-lg border border-black/10 bg-zinc-50 px-3">
+                    <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                        className="w-full bg-transparent text-xs font-semibold text-zinc-700 outline-none"
+                        placeholder="Tìm theo STK, tên chủ tài khoản... (Ấn Enter)"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        onKeyDown={handleSearchKeyDown}
+                    />
                 </div>
 
-                {/* --- Khối bảng và Panel thống kê tích hợp --- */}
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div className="grid grid-cols-4 border-b border-gray-100 bg-gray-50/60 p-4 text-center text-xs font-semibold text-gray-500">
-                        <div>
-                            <p>Tổng số tài khoản</p>
-                            <p className="text-sm font-bold text-gray-900 mt-1">{totalAccountsCount}</p>
-                        </div>
-                        <div>
-                            <p className="text-emerald-600">Đang hoạt động</p>
-                            <p className="text-sm font-bold text-emerald-600 mt-1">{activeCount}</p>
-                        </div>
-                        <div>
-                            <p className="text-red-600">Đã khóa</p>
-                            <p className="text-sm font-bold text-red-600 mt-1">{lockedCount}</p>
-                        </div>
-                        <div>
-                            <p className="text-blue-600">Tổng số dư</p>
-                            <p className="text-sm font-bold text-blue-600 mt-1">{formatVND(totalBalanceSum)}</p>
-                        </div>
-                    </div>
+                <select
+                    className="h-9 rounded-lg border border-black/10 bg-white px-3 text-xs font-bold text-zinc-700 outline-none cursor-pointer"
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value)}
+                >
+                    <option value="">Tất cả trạng thái</option>
+                    <option value="ACTIVE">Hoạt động</option>
+                    <option value="LOCKED">Đã khóa</option>
+                </select>
+            </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 text-xs font-semibold uppercase tracking-wider">
-                                    <th className="px-4 py-3.5">STK</th>
-                                    <th className="px-4 py-3.5">Tên tài khoản</th>
-                                    <th className="px-4 py-3.5">Chủ tài khoản</th>
-                                    <th className="px-4 py-3.5 text-center">Loại TK</th>
-                                    <th className="px-4 py-3.5 text-right">Số dư thực tế</th>
-                                    <th className="px-4 py-3.5 text-right">Đang tạm giữ</th>
-                                    <th className="px-4 py-3.5 text-right">Số dư khả dụng</th>
-                                    <th className="px-4 py-3.5 text-center">Trạng thái</th>
-                                    <th className="px-4 py-3.5 text-center">Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
-                                {loading ? (
-                                    <tr><td colSpan={9} className="text-center py-8">Đang tải...</td></tr>
-                                ) : filteredAccounts.map(row => (
-                                    <tr key={row.id} className="hover:bg-gray-50/40 transition-colors">
-                                        <td className="px-4 py-4 font-mono font-bold text-gray-900">{row.accountNumber}</td>
-                                        <td className="px-4 py-4 text-gray-600 text-xs font-medium">{row.accountName}</td>
-                                        <td className="px-4 py-4">
+            {/* Widgets thống kê nhanh */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-white p-4 rounded-xl border border-black/5 shadow-3xs mb-6">
+                <div><div className="text-[10px] font-bold text-zinc-400 uppercase">Tổng số tài khoản</div><div className="text-lg font-black text-zinc-900 mt-0.5">{totalAccounts}</div></div>
+                <div><div className="text-[10px] font-bold text-green-600 uppercase">Đang hoạt động</div><div className="text-lg font-black text-green-600 mt-0.5">{activeAccounts}</div></div>
+                <div><div className="text-[10px] font-bold text-red-500 uppercase">Đã khóa</div><div className="text-lg font-black text-red-500 mt-0.5">{lockedAccounts}</div></div>
+                <div><div className="text-[10px] font-bold text-blue-600 uppercase">Tổng số dư hệ thống</div><div className="text-lg font-black text-blue-600 mt-0.5">{totalSystemBalance.toLocaleString()} đ</div></div>
+            </div>
+
+            {/* Bảng kết xuất dữ liệu */}
+            <div className="bg-white rounded-2xl border border-black/5 overflow-hidden shadow-xs">
+                <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                        <tr className="bg-zinc-50 border-b border-zinc-100 text-zinc-400 font-bold text-[10px] uppercase tracking-wider">
+                            <th className="p-4 font-mono">STK</th>
+                            <th className="p-4">Tên tài khoản</th>
+                            <th className="p-4">Chủ tài khoản</th>
+                            <th className="p-4 text-center">Loại TK</th>
+                            <th className="p-4 text-right">Số dư thực tế</th>
+                            <th className="p-4 text-right text-amber-600">Đang tạm giữ</th>
+                            <th className="p-4 text-right text-zinc-950">Số dư khả dụng</th>
+                            <th className="p-4 text-center">Trạng thái</th>
+                            <th className="p-4 text-center">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100 font-semibold text-zinc-700">
+                        {loading ? (
+                            <tr><td colSpan={9} className="p-8 text-center text-zinc-400 animate-pulse">Đang nạp dữ liệu tài khoản từ Database Core...</td></tr>
+                        ) : accounts.length === 0 ? (
+                            <tr><td colSpan={9} className="p-8 text-center text-zinc-400">Không tìm thấy dữ liệu tài khoản phù hợp.</td></tr>
+                        ) : (
+                            accounts.map((acc) => {
+                                const isItemLocked = acc.status === "LOCKED" || acc.status === "Đang khóa";
+                                return (
+                                    <tr key={acc.id} className="hover:bg-zinc-50/50 transition-colors">
+                                        <td className="p-4 font-bold font-mono text-zinc-900 text-[12px]">{acc.accountNumber}</td>
+                                        <td className="p-4 text-zinc-400 text-[11px] font-normal">{acc.accountName}</td>
+
+                                        <td className="p-4">
                                             <div className="flex items-center gap-2">
-                                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-600">
-                                                    {row.customerName[0]}
+                                                <div className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-[9px] font-black">
+                                                    {acc.customerName.split(" ").pop()?.substring(0, 2).toUpperCase()}
                                                 </div>
-                                                <span className="font-semibold text-gray-900 text-xs">{row.customerName}</span>
+                                                <span className="text-zinc-900 font-bold">{acc.customerName}</span>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-4 text-center">
-                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${row.accountType === "Thanh toán" ? "bg-blue-50 text-blue-600" :
-                                                    row.accountType === "Tiết kiệm" ? "bg-purple-50 text-purple-600" : "bg-indigo-50 text-indigo-600"
-                                                }`}>{row.accountType}</span>
+
+                                        <td className="p-4 text-center">
+                                            <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-zinc-100 text-zinc-700 uppercase">{acc.accountType}</span>
                                         </td>
-                                        <td className="px-4 py-4 text-right font-semibold text-gray-900">{formatVND(row.actualBalance)}</td>
-                                        <td className={`px-4 py-4 text-right font-medium ${row.heldBalance > 0 ? "text-orange-500" : "text-gray-400"}`}>
-                                            {row.heldBalance > 0 ? formatVND(row.heldBalance) : "-"}
+                                        <td className="p-4 text-right font-mono text-zinc-900">{acc.actualBalance.toLocaleString()} đ</td>
+                                        <td className={`p-4 text-right font-mono ${acc.holdingBalance > 0 ? "text-amber-600 font-bold" : "text-zinc-300 font-normal"}`}>{acc.holdingBalance > 0 ? `${acc.holdingBalance.toLocaleString()} đ` : "-"}</td>
+                                        <td className="p-4 text-right font-mono font-bold text-zinc-950">{acc.availableBalance.toLocaleString()} đ</td>
+                                        <td className="p-4 text-center">
+                                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${isItemLocked ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>{isItemLocked ? "Đã khóa" : "Hoạt động"}</span>
                                         </td>
-                                        <td className="px-4 py-4 text-right font-bold text-gray-900">{formatVND(row.availableBalance)}</td>
-                                        <td className="px-4 py-4 text-center">
-                                            <span className={`inline-block px-2.5 py-0.5 rounded text-xs font-bold ${row.status === "Hoạt động" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
-                                                }`}>{row.status}</span>
-                                        </td>
-                                        {/* Hàng nút hành động như Figma của bạn */}
-                                        <td className="px-4 py-4 text-center">
-                                            <div className="flex items-center justify-center gap-1.5">
-                                                <button onClick={() => openModal(row, "DETAIL")} className="p-1 rounded text-blue-500 hover:bg-blue-50" title="Chi tiết"><Eye size={15} /></button>
-                                                <button onClick={() => openModal(row, "QR")} className="p-1 rounded text-purple-500 hover:bg-purple-50" title="Mã QR"><QrCode size={15} /></button>
-                                                <button onClick={() => toggleAccountStatus(row)} className={`p-1 rounded ${row.status === 'Hoạt động' ? 'text-red-400 hover:bg-red-50' : 'text-emerald-500 hover:bg-emerald-50'}`} title={row.status === 'Hoạt động' ? 'Khóa' : 'Mở khóa'}>🔒</button>
-                                                <button onClick={() => openModal(row, "DEPOSIT")} className="p-1 rounded text-emerald-600 hover:bg-emerald-50" title="Nạp tiền test"><PlusCircle size={15} /></button>
-                                                <button onClick={() => openModal(row, "WITHDRAW")} className="p-1 rounded text-orange-600 hover:bg-orange-50" title="Trừ tiền test"><MinusCircle size={15} /></button>
+
+                                        <td className="p-4 text-center">
+                                            <div className="flex items-center justify-center gap-3">
+                                                <button onClick={() => { setSelectedAccount(acc); setActiveModal("detail"); }} className="text-zinc-400 hover:text-zinc-900 transition-colors" title="Xem chi tiết">
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                    </svg>
+                                                </button>
+                                                <button onClick={() => { setSelectedAccount(acc); setActiveModal("qr"); }} className="text-zinc-400 hover:text-zinc-900 transition-colors" title="Mã QR tài khoản">
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h.01M16 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                </button>
+                                                <button onClick={() => toggleLockAccount(acc)} className={`transition-colors ${isItemLocked ? "text-red-500 hover:text-red-600" : "text-zinc-400 hover:text-zinc-900"}`} title="Khóa/Mở khóa">
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d={isItemLocked ? "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" : "M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"} />
+                                                    </svg>
+                                                </button>
+                                                <button onClick={() => { setSelectedAccount(acc); setActiveModal("deposit"); }} className="text-emerald-500 hover:text-emerald-600 transition-colors" title="Cộng tiền test">
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                                    </svg>
+                                                </button>
+                                                <button onClick={() => { setSelectedAccount(acc); setActiveModal("withdraw"); }} className="text-zinc-400 hover:text-zinc-900 transition-colors" title="Trừ tiền test">
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" />
+                                                    </svg>
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                                );
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
 
-                {/* =========================================================================
-            CÁC KHỐI MODALS POPUP CHẠY ĐỘNG KHI BẤM NÚT THAO TÁC
-           ========================================================================= */}
+            {/* --- DIALOG MODALS KHỐI CHỨC NĂNG --- */}
+            {activeModal && selectedAccount && (
+                <div className="fixed inset-0 z-40 flex items-center justify-center bg-zinc-900/30 backdrop-blur-xs">
+                    <div className="bg-white rounded-2xl w-[440px] border border-black/5 shadow-2xl p-6 relative overflow-hidden text-zinc-800">
 
-                {activeModal && selectedAccount && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                        <button onClick={() => { setActiveModal(null); setAmountInput(""); }} className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-600 font-bold text-sm">✕</button>
 
-                        {/* COMPONENT 1: CHI TIẾT TÀI KHOẢN MODAL */}
-                        {activeModal === "DETAIL" && (
-                            <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl relative animate-zoom-in">
-                                <button onClick={closeModal} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={18} /></button>
-                                <h3 className="text-base font-bold text-gray-900 border-b border-gray-100 pb-3">Chi tiết tài khoản</h3>
-
-                                <div className="mt-4 grid grid-cols-2 gap-y-4 text-xs">
-                                    <div><p className="text-gray-400">Số tài khoản:</p><p className="font-bold text-gray-900 mt-1">{selectedAccount.accountNumber}</p></div>
-                                    <div><p className="text-gray-400">Tên tài khoản:</p><p className="font-bold text-gray-900 mt-1">{selectedAccount.accountName}</p></div>
-                                    <div><p className="text-gray-400">Chủ tài khoản:</p><p className="font-bold text-gray-900 mt-1">{selectedAccount.customerName}</p></div>
-                                    <div><p className="text-gray-400">Loại tài khoản:</p><p className="font-bold text-gray-900 mt-1">{selectedAccount.accountType}</p></div>
+                        {/* Modal 1: Xem chi tiết số dư */}
+                        {activeModal === "detail" && (
+                            <div>
+                                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-4">📋 Chi tiết tài khoản</h3>
+                                <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-xs border-b border-zinc-100 pb-4 mb-4">
+                                    <div><div className="text-zinc-400 font-bold text-[10px] uppercase">Số tài khoản</div><div className="font-mono font-bold text-zinc-900 text-sm mt-0.5">{selectedAccount.accountNumber}</div></div>
+                                    <div><div className="text-zinc-400 font-bold text-[10px] uppercase">Tên tài khoản</div><div className="font-bold text-zinc-900 mt-0.5">{selectedAccount.accountName}</div></div>
+                                    <div><div className="text-zinc-400 font-bold text-[10px] uppercase">Chủ tài khoản</div><div className="font-bold text-emerald-700 mt-0.5">{selectedAccount.customerName}</div></div>
+                                    <div><div className="text-zinc-400 font-bold text-[10px] uppercase">Ngày khởi tạo</div><div className="font-bold text-zinc-900 mt-0.5">{selectedAccount.createdAt}</div></div>
                                 </div>
-
-                                <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-2.5 text-xs text-gray-700">
-                                    <p className="font-bold text-gray-900 mb-1">Thông tin số dư</p>
-                                    <div className="flex justify-between"><span>Số dư thực tế:</span><span className="font-bold text-gray-900">{formatVND(selectedAccount.actualBalance)}</span></div>
-                                    <div className="flex justify-between text-orange-600"><span>Đang tạm giữ:</span><span className="font-bold">- {formatVND(selectedAccount.heldBalance)}</span></div>
-                                    <div className="flex justify-between border-t border-blue-100 pt-2 font-bold text-blue-600 text-sm"><span>Số dư khả dụng:</span><span>{formatVND(selectedAccount.availableBalance)}</span></div>
-                                </div>
-
-                                <div className="mt-4 grid grid-cols-2 gap-4 text-xs border-t border-gray-100 pt-4">
-                                    <div><p className="text-gray-400">Hạn mức giao dịch/ngày:</p><p className="font-semibold text-gray-900 mt-1">{formatVND(selectedAccount.dailyLimit)}</p></div>
-                                    <div><p className="text-gray-400">Hạn mức giao dịch/tháng:</p><p className="font-semibold text-gray-900 mt-1">{formatVND(selectedAccount.monthlyLimit)}</p></div>
-                                    <div><p className="text-gray-400">Ngày mở:</p><p className="font-semibold text-gray-900 mt-1">{selectedAccount.openedDate}</p></div>
-                                    <div><p className="text-gray-400">Trạng thái:</p><p className="font-semibold text-gray-900 mt-1">{selectedAccount.status}</p></div>
+                                <div className="bg-zinc-50 p-3 rounded-xl space-y-2 text-xs">
+                                    <div className="flex justify-between"><span className="text-zinc-500">Số dư thực tế:</span><span className="font-mono font-bold text-zinc-900">{selectedAccount.actualBalance.toLocaleString()} đ</span></div>
+                                    <div className="flex justify-between text-amber-600"><span className="font-medium">Đang tạm giữ:</span><span className="font-mono font-bold">-{selectedAccount.holdingBalance.toLocaleString()} đ</span></div>
+                                    <div className="flex justify-between border-t border-zinc-200/60 pt-2 text-zinc-950 font-bold"><span>Số dư khả dụng:</span><span className="font-mono text-emerald-600">{selectedAccount.availableBalance.toLocaleString()} đ</span></div>
                                 </div>
                             </div>
                         )}
 
-                        {/* COMPONENT 2: MODAL MÃ QR TÀI KHOẢN */}
-                        {activeModal === "QR" && (
-                            <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl text-center relative animate-zoom-in">
-                                <button onClick={closeModal} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={18} /></button>
-                                <h3 className="text-sm font-semibold text-gray-500 mb-4">Mã QR tài khoản</h3>
-                                <div className="mx-auto flex h-48 w-48 items-center justify-center border-2 border-gray-100 rounded-2xl bg-gray-50 p-2">
-                                    <div className="w-full h-full border-4 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 font-mono text-xs">
-                                        <span>[ QR CODE ]</span>
-                                        <span className="text-[10px] mt-1">Napas 247</span>
-                                    </div>
+                        {/* Modal 2: Mã QR hiển thị tên động */}
+                        {activeModal === "qr" && (
+                            <div className="text-center py-2">
+                                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-4">🔲 Mã QR Tài Khoản</h3>
+                                <div className="w-40 h-40 bg-zinc-50 mx-auto rounded-xl border border-zinc-200 p-4 flex flex-col items-center justify-center shadow-inner mb-4 relative">
+                                    <div className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-zinc-900"></div>
+                                    <div className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-zinc-900"></div>
+                                    <div className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-zinc-900"></div>
+                                    <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-zinc-900"></div>
+                                    <span className="text-zinc-400 font-mono text-[9px] font-bold">CORE BANKING QR</span>
                                 </div>
-                                <div className="mt-4 text-xs font-medium">
-                                    <p className="text-gray-400">STK: <span className="font-bold text-gray-900">{selectedAccount.accountNumber}</span></p>
-                                    <p className="text-gray-900 font-bold mt-1 text-sm">{selectedAccount.customerName}</p>
-                                </div>
+                                <div className="text-xs font-mono font-bold text-zinc-900">STK: {selectedAccount.accountNumber}</div>
+                                <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mt-0.5">{selectedAccount.customerName}</div>
                             </div>
                         )}
 
-                        {/* COMPONENT 3 & 4: POPUP NẠP TIỀN TEST / TRỪ TIỀN TEST */}
-                        {(activeModal === "DEPOSIT" || activeModal === "WITHDRAW") && (
-                            <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl relative animate-zoom-in">
-                                <button onClick={closeModal} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={18} /></button>
-                                <h3 className="text-sm font-bold text-gray-800">{activeModal === "DEPOSIT" ? "Nạp tiền test" : "Trừ tiền test"}</h3>
+                        {/* Modal 3 & 4: Biểu mẫu cộng / trừ tiền test */}
+                        {(activeModal === "deposit" || activeModal === "withdraw") && (
+                            <div>
+                                <h3 className="text-sm font-black text-zinc-900 mb-1">{activeModal === "deposit" ? "➕ Ghi tăng số dư" : "➖ Ghi giảm số dư"}</h3>
+                                <div className="text-zinc-400 text-[11px] mb-4">Chủ tài khoản thụ hưởng: <span className="font-bold text-zinc-900">{selectedAccount.customerName}</span> (<span className="font-mono">{selectedAccount.accountNumber}</span>)</div>
 
-                                <div className="mt-4 space-y-2">
-                                    <label className="text-xs font-semibold text-gray-500">Số tiền</label>
+                                <div className="space-y-1.5 mb-5">
+                                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Số tiền cần xử lý (đ)</label>
                                     <input
                                         type="number"
+                                        className="w-full h-10 border border-zinc-200 rounded-xl px-3 text-sm font-bold text-zinc-800 bg-zinc-50 outline-none focus:border-zinc-400 focus:bg-white transition-all"
                                         placeholder="Nhập số tiền..."
-                                        value={testAmount}
-                                        onChange={(e) => setTestAmount(e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-gray-900 font-semibold"
+                                        value={amountInput}
+                                        onChange={e => setAmountInput(e.target.value)}
+                                        disabled={isSubmitting}
                                     />
                                 </div>
 
-                                <div className="mt-5 flex gap-3 justify-end text-xs font-semibold">
-                                    <button onClick={closeModal} className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50">Hủy</button>
-                                    <button
-                                        onClick={() => handleUpdateBalance(activeModal === "DEPOSIT" ? "ADD" : "SUB")}
-                                        className={`px-4 py-2 text-white rounded-lg transition-colors ${activeModal === "DEPOSIT" ? "bg-emerald-500 hover:bg-emerald-600" : "bg-orange-600 hover:bg-orange-700"
-                                            }`}
-                                    >
+                                <div className="flex items-center justify-end gap-2 text-xs font-bold">
+                                    <button onClick={() => { setActiveModal(null); setAmountInput(""); }} className="h-9 px-4 border border-zinc-200 text-zinc-500 rounded-xl hover:bg-zinc-50" disabled={isSubmitting}>Hủy bỏ</button>
+                                    <button onClick={handleBalanceAdjustment} className={`h-9 px-5 text-white rounded-xl active:scale-95 flex items-center gap-1 transition-all ${activeModal === "deposit" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-zinc-900 hover:bg-black"}`} disabled={isSubmitting}>
+                                        {isSubmitting && <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
                                         Xác nhận
                                     </button>
                                 </div>
@@ -392,9 +391,8 @@ export default function BankAccountsPage() {
                         )}
 
                     </div>
-                )}
-
-            </div>
+                </div>
+            )}
         </AdminShell>
     );
 }
