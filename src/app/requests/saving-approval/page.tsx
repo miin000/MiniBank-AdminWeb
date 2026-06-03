@@ -205,6 +205,8 @@ export default function SavingApprovalPage() {
     const [selectedDetail, setSelectedDetail] =
         useState<SavingDetail | null>(null);
 
+
+
     const [loading, setLoading] =
         useState(true);
 
@@ -442,7 +444,13 @@ export default function SavingApprovalPage() {
 
                 {/* LEFT PANEL */}
 
-                <div className="col-span-4">
+                <div
+                    className={
+                        selectedDetail
+                            ? "col-span-6"
+                            : "col-span-12"
+                    }
+                >
 
                     <div className="rounded-2xl border border-zinc-200 bg-white">
 
@@ -616,7 +624,13 @@ export default function SavingApprovalPage() {
 
                 {/* RIGHT PANEL */}
 
-                <div className="col-span-8">
+                <div
+                    className={
+                        selectedDetail
+                            ? "col-span-6"
+                            : "hidden"
+                    }
+                >
 
                     <div className="rounded-2xl border border-zinc-200 bg-white">
 
@@ -642,20 +656,26 @@ export default function SavingApprovalPage() {
 
                                         <div>
 
-                                            <h2 className="text-2xl font-bold">
-                                                {
-                                                    selectedDetail.userFullName
-                                                }
-                                            </h2>
+                                            <div className="flex items-center gap-3">
+
+                                                <button
+                                                    onClick={() => setSelectedDetail(null)}
+                                                    className="rounded-lg border px-3 py-1"
+                                                >
+                                                    ←
+                                                </button>
+
+                                                <h2 className="text-2xl font-bold">
+                                                    {selectedDetail.userFullName}
+                                                </h2>
+
+                                            </div>
 
                                             <p className="mt-1 text-sm text-zinc-500">
-                                                {
-                                                    selectedDetail.code
-                                                }
+                                                {selectedDetail.code}
                                             </p>
 
                                         </div>
-
                                         <div className="flex gap-3">
 
                                             {selectedDetail.status ===
