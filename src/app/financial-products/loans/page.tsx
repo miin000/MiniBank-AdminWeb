@@ -104,7 +104,7 @@ export default function AdminLoanDashboard() {
   // Điều khiển Modal Thêm mới Gói Vay (Nhiệm vụ 2)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [productForm, setProductForm] = useState<LoanProductForm>({
-    code: "", name: "", loanType: "PERSONAL", currency: "VND",
+    code: "", name: "", loanType: "UNSECURED", currency: "VND",
     minAmount: "", maxAmount: "", minTermMonths: "", maxTermMonths: "", baseInterestRate: ""
   });
 
@@ -113,17 +113,10 @@ export default function AdminLoanDashboard() {
     setToken(adminToken);
   }, []);
 
-<<<<<<< HEAD
-  const authHeader = useMemo<HeadersInit>(() => {
-    if (!token) return {} as HeadersInit;
-    return { Authorization: `Bearer ${token}` } as HeadersInit;
-  }, [token]);
-=======
   const headers = useMemo(() => ({
     "Content-Type": "application/json",
     "Authorization": `Bearer ${token}`
   }), [token]);
->>>>>>> e885c011d0c4c5998af7466a38f5c69e1c1ae210
 
   // ==============================================================
   // CÁC HÀM ĐỒNG BỘ ĐỒNG THỜI VỚI CÁC CONTROLLER TRÊN BACKEND
@@ -230,7 +223,7 @@ export default function AdminLoanDashboard() {
       });
       if (res.ok) {
         setIsModalOpen(false);
-        setProductForm({ code: "", name: "", loanType: "PERSONAL", currency: "VND", minAmount: "", maxAmount: "", minTermMonths: "", maxTermMonths: "", baseInterestRate: "" });
+        setProductForm({ code: "", name: "", loanType: "UNSECURED", currency: "VND", minAmount: "", maxAmount: "", minTermMonths: "", maxTermMonths: "", baseInterestRate: "" });
         loadProductData();
       }
     } catch (err) {
@@ -455,7 +448,7 @@ export default function AdminLoanDashboard() {
                           </button>
                         </div>
                         <h4 className="text-sm font-bold text-zinc-950 mt-2">{p.name}</h4>
-                        <p className="text-[11px] font-bold text-zinc-400 mt-0.5 uppercase tracking-wide">{p.loanType === "PERSONAL" ? "Tiêu dùng cá nhân" : "Bất động sản / Doanh nghiệp"}</p>
+                        <p className="text-[11px] font-bold text-zinc-400 mt-0.5 uppercase tracking-wide">{p.loanType === "SECURED" ? "Thế chấp" : "Tín chấp"}</p>
 
                         <div className="mt-4 pt-4 border-t border-zinc-100 space-y-2 text-xs font-semibold text-zinc-500">
                           <div className="flex justify-between"><span>Biên hạn mức:</span><span className="text-zinc-950 font-mono">{formatCurrency(p.minAmount)} - {formatCurrency(p.maxAmount)}</span></div>
@@ -529,9 +522,8 @@ export default function AdminLoanDashboard() {
                 <div className="col-span-1">
                   <label className="text-[11px] font-bold text-zinc-500 uppercase">Phân loại nghiệp vụ</label>
                   <select className="mt-1 h-9 w-full rounded-xl border border-black/10 px-3 text-xs bg-white font-semibold outline-none" value={productForm.loanType} onChange={(e) => setProductForm({ ...productForm, loanType: e.target.value })}>
-                    <option value="PERSONAL">Tiêu dùng cá nhân (Personal)</option>
-                    <option value="BUSINESS">Phát triển kinh doanh (Business)</option>
-                    <option value="MORTGAGE">Thế chấp bất động sản (Mortgage)</option>
+                    <option value="UNSECURED">Tín chấp</option>
+                    <option value="SECURED">Thế chấp</option>
                   </select>
                 </div>
                 <div className="col-span-1">

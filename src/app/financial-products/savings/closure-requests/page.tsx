@@ -31,15 +31,18 @@ interface SavingClosureRequest {
     status:
     | "PENDING"
     | "STAFF_REVIEWING"
-    | "WAITING_MANAGER_APPROVAL";
+    | "WAITING_MANAGER_APPROVAL"
+    | "APPROVED"
+    | "REJECTED";
     submittedAt: string;
     reviewedBy?: string;
     reviewNotes?: string;
     requiresManagerApproval: boolean;
 }
 
-const API_BASE =
-    process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8081";
+const API_BASE = (
+    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080"
+).replace(/\/+$/, "");
 
 async function apiFetch<T>(
     path: string,
@@ -82,14 +85,23 @@ function mapStatus(
     beStatus: string
 ): SavingClosureRequest["status"] {
     switch (beStatus) {
+        case "SUBMITTED":
         case "closure_requested":
             return "PENDING";
 
+        case "IN_REVIEW":
         case "reviewing":
             return "STAFF_REVIEWING";
 
+        case "MANAGER_REVIEW":
         case "manager_approval":
             return "WAITING_MANAGER_APPROVAL";
+
+        case "APPROVED":
+            return "APPROVED";
+
+        case "REJECTED":
+            return "REJECTED";
 
         default:
             return "PENDING";
@@ -151,7 +163,7 @@ export default function SavingClosureRequestsPage() {
                     savingCode: item.savingCode ?? "",
 
                     productName:
-                        item.productName ?? "",
+                        item.productName ?? item.savingProductName ?? "",
 
                     principalAmount:
                         item.principalAmount ?? 0,
@@ -172,7 +184,7 @@ export default function SavingClosureRequestsPage() {
                         : "",
 
                     closureType:
-                        item.closureType === "early"
+                        item.closureType === "early" || item.settlementType === "early"
                             ? "early"
                             : "on_time",
 
@@ -183,7 +195,7 @@ export default function SavingClosureRequestsPage() {
                         item.penaltyFee ?? 0,
 
                     totalAmount:
-                        item.totalAmount ?? 0,
+                        item.totalAmount ?? item.settlementAmount ?? 0,
 
                     status: mapStatus(item.status),
 
@@ -191,7 +203,7 @@ export default function SavingClosureRequestsPage() {
                         item.submittedAt ?? "",
 
                     requiresManagerApproval:
-                        item.closureType === "early",
+                        item.status === "MANAGER_REVIEW" || item.settlementType === "early",
                 }));
 
             setRequests(mapped);
@@ -205,6 +217,32 @@ export default function SavingClosureRequestsPage() {
     useEffect(() => {
         fetchRequests();
     }, []);
+
+    async function decideRequest(type: "approve" | "reject") {
+        if (!selectedRequest) return;
+        if (type === "reject" && !rejectReason.trim()) {
+            alert("Vui long nhap ly do tu choi.");
+            return;
+        }
+
+        try {
+            await apiFetch(
+                `/api/admin/financial-products/saving-settlement-requests/${selectedRequest.id}/${type}`,
+                {
+                    method: "POST",
+                    body: JSON.stringify({
+                        note: type === "reject" ? rejectReason.trim() : undefined,
+                    }),
+                }
+            );
+            setShowDetailModal(false);
+            setSelectedRequest(null);
+            setRejectReason("");
+            await fetchRequests();
+        } catch (error) {
+            alert(error instanceof Error ? error.message : "Khong the xu ly yeu cau.");
+        }
+    }
 
     const filteredRequests = useMemo(() => {
         return requests.filter((req) => {
@@ -711,21 +749,32 @@ export default function SavingClosureRequestsPage() {
                                 </div>
                             </div>
 
+                            {selectedRequest.status !== "APPROVED" && selectedRequest.status !== "REJECTED" && (
                             <div className="flex justify-end gap-4">
 
+                                <textarea
+                                    value={rejectReason}
+                                    onChange={(event) => setRejectReason(event.target.value)}
+                                    placeholder="Ly do tu choi (neu tu choi)"
+                                    className="min-h-12 flex-1 rounded-xl border border-zinc-200 px-4 py-3 text-sm outline-none"
+                                />
+
                                 <button
+                                    onClick={() => decideRequest("reject")}
                                     className="rounded-xl bg-red-50 px-6 py-3 font-medium text-red-600"
                                 >
                                     Từ chối
                                 </button>
 
                                 <button
+                                    onClick={() => decideRequest("approve")}
                                     className="rounded-xl bg-green-600 px-6 py-3 font-medium text-white"
                                 >
                                     Phê duyệt
                                 </button>
 
                             </div>
+                            )}
 
                         </div>
 
