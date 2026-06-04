@@ -365,7 +365,7 @@ export default function AdminBankAccountsPage() {
                         {/* Modal 3 & 4: Biểu mẫu cộng / trừ tiền test */}
                         {(activeModal === "deposit" || activeModal === "withdraw") && (
                             <div>
-                                <h3 className="text-sm font-black text-zinc-900 mb-1">{activeModal === "deposit" ? "➕ Ghi tăng số dư" : "➖ Ghi giảm số dư"}</h3>
+                                <h3 className="text-sm font-black text-zinc-900 mb-1">{activeModal === "deposit" ? " Tăng số dư" : " Giảm số dư"}</h3>
                                 <div className="text-zinc-400 text-[11px] mb-4">Chủ tài khoản thụ hưởng: <span className="font-bold text-zinc-900">{selectedAccount.customerName}</span> (<span className="font-mono">{selectedAccount.accountNumber}</span>)</div>
 
                                 <div className="space-y-1.5 mb-5">
