@@ -47,16 +47,18 @@ export default function AuditPage() {
         try {
 
             setLoading(true);
+            const token =
+                localStorage.getItem("adminToken") ||
+                localStorage.getItem("token");
 
-            const token = localStorage.getItem("adminToken");
-
+            console.log("TOKEN =", token);
             if (!token) {
                 console.log("Chưa đăng nhập admin");
                 setAuditLogs([]);
                 return;
             }
 
-            const res = await fetch(`${API_BASE}/api/system/logs`, {
+            const res = await fetch(`${API_BASE}/api/admin/system/logs`, {
                 method: "GET",
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -72,17 +74,15 @@ export default function AuditPage() {
                 return;
             }
 
-            const data: any[] = await res.json();
+            const data = await res.json();
 
-            if (!Array.isArray(data)) {
+            console.log("AUDIT RESPONSE:", data);
 
-                console.log("Data không hợp lệ");
+            const logs = Array.isArray(data)
+                ? data
+                : data.items || [];
 
-                setAuditLogs([]);
-                return;
-            }
-
-            const mappedData: AuditLog[] = data.map((item: any) => ({
+            const mappedData: AuditLog[] = logs.map((item: any) => ({
 
                 id: item.id ?? 0,
 
@@ -96,16 +96,26 @@ export default function AuditPage() {
                             : "Giao dịch"
                 ) as AuditType,
 
-                actor: item.actor || "Hệ thống",
+                actor: item.actorType || "Hệ thống",
 
                 action: item.action || "-",
 
                 ip: item.ipAddress || "-",
 
-                detail:
-                    typeof item.metadata === "object"
-                        ? JSON.stringify(item.metadata)
-                        : item.metadata || "-",
+                detail: (() => {
+                    try {
+                        const meta = JSON.parse(item.metadataJson || "{}");
+
+                        return (
+                            meta.path ||
+                            meta.method ||
+                            item.metadataJson ||
+                            "-"
+                        );
+                    } catch {
+                        return item.metadataJson || "-";
+                    }
+                })(),
             }));
 
             setAuditLogs(mappedData);
