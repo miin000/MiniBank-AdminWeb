@@ -1,14 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertCircle, CheckCircle2, ChevronDown, PlusCircle, Search, HelpCircle } from "lucide-react";
 import AdminShell from "../../components/admin-shell";
 
 const API_BASE = (
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080"
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:8080"
 ).replace(/\/+$/, "");
 
-// --- DATA TYPES ĐỒNG BỘ 100% VỚI CÁC RECORD JAVA BACKEND ---
-
+// Khớp chính xác với cấu trúc LoanProductItem trong AdminFinancialProductController.java
 type LoanProductItem = {
   id: number;
   code: string;
@@ -20,99 +22,58 @@ type LoanProductItem = {
   minTermMonths: number;
   maxTermMonths: number;
   baseInterestRate: number;
-  status: "active" | "inactive" | string;
+  status: string;
 };
 
-type LoanTierItem = {
-  id: number;
-  loanProductId: number;
-  loanProductName: string;
-  minAmount: number;
-  maxAmount: number;
-  minTermMonths: number;
-  maxTermMonths: number;
-  interestRate: number;
-  effectiveFrom: string;
-  effectiveTo: string;
-};
+const statusOptions = [
+  { value: "ALL", label: "Tất cả trạng thái" },
+  { value: "active", label: "Đang hoạt động (Active)" },
+  { value: "inactive", label: "Tạm ngưng (Inactive)" },
+];
 
-type LoanApplication = {
-  id: number;
-  applicationCode: string;
-  customerName: string;
-  loanProductName: string;
-  requestedAmount: number;
-  termMonths: number;
-  purpose: string;
-  status: "PENDING" | "APPROVED" | "REJECTED" | string;
-  createdAt: string;
-};
-
-type ContractItem = {
-  id: number;
-  code: string;
-  customerName: string;
-  accountNo: string;
-  amount: number;
-  interestRate: number;
-  termMonths: number;
-  status: "DANG_VAY" | "QUA_HAN" | "DA_TAT_TOAN" | string;
-};
-
-// --- CẤU TRÚC ĐỐI TƯỢNG FORM ĐỂ GỬI LÊN ADMIN CONTROLLER (UPSERT) ---
-type LoanProductForm = {
-  code: string;
-  name: string;
-  loanType: string;
-  currency: string;
-  minAmount: string;
-  maxAmount: string;
-  minTermMonths: string;
-  maxTermMonths: string;
-  baseInterestRate: string;
-};
-
-// --- CHUYỂN ĐỔI ĐỊNH DẠNG ĐỒNG TIỀN & TỶ LỆ PHẦN TRĂM ---
-function formatCurrency(value: number | null | undefined) {
-  if (value === null || value === undefined) return "0 đ";
-  return value.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ".") + " đ";
+function formatVND(value: number) {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
-function formatPercent(value: number | null | undefined) {
-  if (value === null || value === undefined) return "0%";
-  return `${(value * 100).toFixed(2).replace(/\.00$/, "")}%`;
-}
-
-export default function AdminLoanDashboard() {
+export default function LoanProductsPage() {
   const [token, setToken] = useState<string | null>(null);
-
-  // Điều hướng Menu chính (Khớp với sơ đồ Figma của bạn)
-  const [mainMenu, setMainMenu] = useState<"loans" | "products" | "tiers">("loans");
-  // Sub-tabs dành riêng cho Quản lý Khế ước & Hồ sơ vay (Nhiệm vụ 1)
-  const [loanSubTab, setLoanSubTab] = useState<"applications" | "contracts">("applications");
-
-  // State Lưu trữ Dữ liệu Hệ thống
-  const [applications, setApplications] = useState<LoanApplication[]>([]);
-  const [contracts, setContracts] = useState<ContractItem[]>([]);
   const [products, setProducts] = useState<LoanProductItem[]>([]);
-  const [tiers, setTiers] = useState<LoanTierItem[]>([]);
-
-  // Trạng thái tải dữ liệu (Loading loading screen)
-  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+<<<<<<< HEAD
   // Điều khiển Modal Thêm mới Gói Vay (Nhiệm vụ 2)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [productForm, setProductForm] = useState<LoanProductForm>({
     code: "", name: "", loanType: "UNSECURED", currency: "VND",
     minAmount: "", maxAmount: "", minTermMonths: "", maxTermMonths: "", baseInterestRate: ""
   });
+=======
+  // States cho Form Thêm gói sản phẩm vay mới
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [loanType, setLoanType] = useState("PERSONAL");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+  const [minTermMonths, setMinTermMonths] = useState("");
+  const [maxTermMonths, setMaxTermMonths] = useState("");
+  const [baseInterestRate, setBaseInterestRate] = useState("");
+  const [formSubmitting, setFormSubmitting] = useState(false);
+>>>>>>> be053e22f2b4eb743f01d18529abcbe7afa7fdfa
 
   useEffect(() => {
-    const adminToken = localStorage.getItem("adminToken") || localStorage.getItem("token");
-    setToken(adminToken);
+    setToken(localStorage.getItem("adminToken"));
   }, []);
 
+<<<<<<< HEAD
   const headers = useMemo(() => ({
     "Content-Type": "application/json",
     "Authorization": `Bearer ${token}`
@@ -156,188 +117,210 @@ export default function AdminLoanDashboard() {
       setLoading(false);
     }
   }, [token, headers]);
+=======
+  // Gọi API lấy danh sách gói vay
+  const fetchLoanProducts = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/financial-products/loan-products`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) throw new Error((await res.text()) || "Không thể tải danh sách sản phẩm vay");
+      setProducts((await res.json()) as LoanProductItem[]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Có lỗi xảy ra khi kết nối API");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+>>>>>>> be053e22f2b4eb743f01d18529abcbe7afa7fdfa
 
   useEffect(() => {
-    if (token) {
-      if (mainMenu === "loans") loadLoanManagementData();
-      else loadProductData();
-    }
-  }, [mainMenu, token, loadLoanManagementData, loadProductData]);
+    fetchLoanProducts();
+  }, [fetchLoanProducts]);
 
-  // Duyệt/Từ chối Hồ sơ trực tiếp từ bảng (Nhiệm vụ 1)
-  const handleUpdateAppStatus = async (id: number, status: "APPROVED" | "REJECTED") => {
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/loans/applications/${id}/status`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({ status })
-      });
-      if (res.ok) {
-        loadLoanManagementData();
-      } else {
-        // Mock-up cập nhật trực quan nếu server dev chưa mở quyền Patch
-        setApplications(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-      }
-    } catch {
-      setApplications(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-    }
-  };
-
-  // Đóng/Mở trạng thái sản phẩm vay qua nút gạt Toggle (Nhiệm vụ 2)
-  const handleToggleProductStatus = async (id: number, currentStatus: string) => {
-    const nextStatus = currentStatus === "active" ? "inactive" : "active";
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/financial-products/loan-products/${id}/status?status=${nextStatus}`, {
-        method: "PATCH",
-        headers
-      });
-      if (res.ok) loadProductData();
-      else {
-        setProducts(prev => prev.map(p => p.id === id ? { ...p, status: nextStatus } : p));
-      }
-    } catch {
-      setProducts(prev => prev.map(p => p.id === id ? { ...p, status: nextStatus } : p));
-    }
-  };
-
-  // Submit form thêm gói vay mới lên AdminFinancialProductController (Nhiệm vụ 2)
-  const handleCreateProduct = async (e: React.FormEvent) => {
+  // Gửi dữ liệu tạo mới lên Backend (Khớp LoanProductUpsertRequest)
+  const handleCreateLoanProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = {
-      code: productForm.code,
-      name: productForm.name,
-      loanType: productForm.loanType,
-      currency: productForm.currency,
-      minAmount: Number(productForm.minAmount),
-      maxAmount: Number(productForm.maxAmount),
-      minTermMonths: Number(productForm.minTermMonths),
-      maxTermMonths: Number(productForm.maxTermMonths),
-      baseInterestRate: Number(productForm.baseInterestRate) / 100
-    };
-
+    if (!token) return;
+    setFormSubmitting(true);
     try {
       const res = await fetch(`${API_BASE}/api/admin/financial-products/loan-products`, {
         method: "POST",
-        headers,
-        body: JSON.stringify(payload)
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          code,
+          name,
+          loanType,
+          currency: "VND",
+          minAmount: parseFloat(minAmount),
+          maxAmount: parseFloat(maxAmount),
+          minTermMonths: parseInt(minTermMonths),
+          maxTermMonths: parseInt(maxTermMonths),
+          interestRateType: "FIXED",
+          baseInterestRate: parseFloat(baseInterestRate),
+          status: "active",
+        }),
       });
+
       if (res.ok) {
+<<<<<<< HEAD
         setIsModalOpen(false);
         setProductForm({ code: "", name: "", loanType: "UNSECURED", currency: "VND", minAmount: "", maxAmount: "", minTermMonths: "", maxTermMonths: "", baseInterestRate: "" });
         loadProductData();
+=======
+        setShowCreateForm(false);
+        setCode("");
+        setName("");
+        setMinAmount("");
+        setMaxAmount("");
+        setMinTermMonths("");
+        setMaxTermMonths("");
+        setBaseInterestRate("");
+        fetchLoanProducts(); // Tải lại bảng dữ liệu
+      } else {
+        const errMsg = await res.text();
+        alert(`Lỗi từ hệ thống: ${errMsg}`);
+>>>>>>> be053e22f2b4eb743f01d18529abcbe7afa7fdfa
       }
     } catch (err) {
-      console.error("Lỗi đẩy gói vay lên DB", err);
+      console.error(err);
+      alert("Không thể kết nối đến máy chủ Backend.");
+    } finally {
+      setFormSubmitting(false);
     }
   };
 
-  // Bộ lọc dữ liệu theo thanh Search của Figma
+  // Cập nhật trạng thái Active/Inactive nhanh qua API PatchMapping
+  const handleToggleStatus = async (id: number, currentStatus: string) => {
+    if (!token) return;
+    const nextStatus = currentStatus.toLowerCase() === "active" ? "inactive" : "active";
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/financial-products/loan-products/${id}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      if (res.ok) {
+        fetchLoanProducts();
+      }
+    } catch (err) {
+      console.error("Lỗi cập nhật trạng thái:", err);
+    }
+  };
+
+  // Bộ lọc Client-side tìm kiếm
   const filteredProducts = useMemo(() => {
-    return products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.code.toLowerCase().includes(searchQuery.toLowerCase()));
-  }, [products, searchQuery]);
+    const query = searchQuery.trim().toLowerCase();
+    return products.filter((item) => {
+      const matchesSearch =
+        !query ||
+        item.name.toLowerCase().includes(query) ||
+        item.code.toLowerCase().includes(query);
+      const matchesStatus =
+        statusFilter === "ALL" || item.status.toLowerCase() === statusFilter.toLowerCase();
+      return matchesSearch && matchesStatus;
+    });
+  }, [products, searchQuery, statusFilter]);
 
   if (!token) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f8f9fa]">
-        <div className="w-full max-w-sm rounded-2xl border border-black/5 bg-white p-6 text-center shadow-xs">
-          <div className="w-12 h-12 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center text-xl font-bold mx-auto mb-3">🛡️</div>
-          <h1 className="text-sm font-bold text-zinc-900">Hệ Thống Quản Trị Trung Tâm</h1>
-          <p className="mt-1 text-xs text-zinc-500">Yêu cầu quyền truy cập Administrator cấp cao.</p>
-          <a href="/login" className="mt-4 inline-flex h-9 w-full items-center justify-center rounded-xl bg-orange-600 text-xs font-bold text-white transition hover:bg-orange-700">Đăng nhập Admin</a>
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f7fb] px-6">
+        <div className="rounded-xl bg-white p-6 text-sm text-gray-600 shadow">
+          Vui lòng đăng nhập tài khoản Admin/Staff để tiếp tục quản trị sản phẩm tài chính.
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-[#f8f9fa] antialiased">
+    <AdminShell title="Gói sản phẩm vay" subtitle="Cấu hình danh mục, hạn mức và lãi suất cơ sở của dịch vụ tín dụng">
+      <div className="space-y-6 font-sans text-gray-800">
 
-      {/* ============================================================== */}
-      {/* SIDEBAR ĐIỀU HƯỚNG CHUẨN ĐỒ HỌA FIGMA CỦA BẠN */}
-      {/* ============================================================== */}
-      <aside className="w-64 bg-zinc-950 text-zinc-400 flex flex-col justify-between border-r border-zinc-900 shrink-0 select-none">
-        <div className="p-5">
-          <div className="flex items-center gap-3 px-2 mb-8">
-            <div className="w-8 h-8 rounded-xl bg-orange-600 flex items-center justify-center text-white font-black text-xs">MB</div>
+        {/* Tiêu đề & Nút bật tắt Form thêm nhanh */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-base font-bold text-gray-900">Danh sách sản phẩm vay hiện hành</h2>
+          <button
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            className="flex items-center gap-1.5 rounded-xl bg-orange-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-orange-700"
+          >
+            <PlusCircle size={14} /> {showCreateForm ? "Đóng trình tạo" : "Thêm gói vay mới"}
+          </button>
+        </div>
+
+        {/* FORM THÊM GÓI SẢN PHẨM MỚI */}
+        {showCreateForm && (
+          <form onSubmit={handleCreateLoanProduct} className="grid grid-cols-1 gap-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm sm:grid-cols-2 md:grid-cols-4">
             <div>
-              <div className="text-white font-bold text-xs tracking-wide uppercase">MiniBank Core</div>
-              <div className="text-[10px] text-zinc-500 font-bold font-mono">ADMIN WORKSPACE</div>
+              <label className="text-xs font-bold text-gray-500 uppercase">Mã gói vay</label>
+              <input type="text" required placeholder="Ví dụ: VMN01" value={code} onChange={(e) => setCode(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-orange-500 bg-gray-50/50" />
             </div>
-          </div>
-
-          <div className="text-[10px] uppercase tracking-wider font-bold text-zinc-600 px-3 mb-2 block">Phân hệ nghiệp vụ</div>
-          <nav className="space-y-1 text-xs font-bold">
-            <button
-              onClick={() => setMainMenu("loans")}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${mainMenu === "loans" ? "bg-orange-600/10 text-orange-500 border border-orange-600/20" : "hover:bg-zinc-900 text-zinc-400"}`}
-            >
-              💼 Quản lý Khế ước & Hồ sơ
-            </button>
-            <button
-              onClick={() => setMainMenu("products")}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${mainMenu === "products" ? "bg-orange-600/10 text-orange-500 border border-orange-600/20" : "hover:bg-zinc-900 text-zinc-400"}`}
-            >
-              🏷️ Danh mục sản phẩm vay
-            </button>
-            <button
-              onClick={() => setMainMenu("tiers")}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${mainMenu === "tiers" ? "bg-orange-600/10 text-orange-500 border border-orange-600/20" : "hover:bg-zinc-900 text-zinc-400"}`}
-            >
-              📊 Cấu hình Bậc lãi suất vay
-            </button>
-          </nav>
-        </div>
-
-        <div className="p-4 border-t border-zinc-900 bg-zinc-900/40 flex items-center justify-between text-[11px] font-bold">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-zinc-800 text-zinc-200 flex items-center justify-center">A</div>
-            <span className="text-zinc-300">Admin_Core</span>
-          </div>
-          <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-zinc-500 hover:text-rose-400">Đăng xuất</button>
-        </div>
-      </aside>
-
-      {/* ============================================================== */}
-      {/* KHỐI HIỂN THỊ NỘI DUNG CHÍNH (MAIN INTERFACE PANEL) */}
-      {/* ============================================================== */}
-      <main className="flex-1 min-w-0 overflow-y-auto p-8">
-        <AdminShell
-          title={mainMenu === "loans" ? "Quản lý Khế ước & Thẩm định Hồ sơ" : mainMenu === "products" ? "Danh mục Sản phẩm Vay vốn" : "Bảng quản trị Bậc lãi suất Tín dụng"}
-          subtitle="Hệ thống tổng hợp và can thiệp tham số cốt lõi ngân hàng số MiniBank"
-          actions={
-            mainMenu === "products" ? (
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="h-9 rounded-xl bg-orange-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-orange-700"
-              >
-                + Thêm sản phẩm vay
-              </button>
-            ) : undefined
-          }
-        >
-          {/* THANH TÌM KIẾM CỦA FIGMA */}
-          <div className="mb-6 flex items-center justify-between gap-4 flex-wrap">
-            {mainMenu === "loans" ? (
-              <div className="flex gap-1 bg-zinc-100 p-1 rounded-xl text-xs font-bold">
-                <button onClick={() => setLoanSubTab("applications")} className={`px-4 py-2 rounded-lg transition-all ${loanSubTab === "applications" ? "bg-white text-zinc-950 shadow-2xs" : "text-zinc-500"}`}>
-                  📋 Hồ sơ đang chờ duyệt ({applications.length})
-                </button>
-                <button onClick={() => setLoanSubTab("contracts")} className={`px-4 py-2 rounded-lg transition-all ${loanSubTab === "contracts" ? "bg-white text-zinc-950 shadow-2xs" : "text-zinc-500"}`}>
-                  💳 Hợp đồng đang vay ({contracts.length})
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase">Tên gói sản phẩm</label>
+              <input type="text" required placeholder="Vay mua nhà ưu đãi" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-orange-500 bg-gray-50/50" />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase">Loại hình vay</label>
+              <select value={loanType} onChange={(e) => setLoanType(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-2 text-xs outline-none focus:border-orange-500 bg-gray-50/50">
+                <option value="PERSONAL">Vay cá nhân (Personal)</option>
+                <option value="BUSINESS">Vay doanh nghiệp (Business)</option>
+                <option value="MORTGAGE">Vay thế chấp (Mortgage)</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase">Lãi suất cơ sở (%/Năm)</label>
+              <input type="number" step="0.01" required placeholder="6.8" value={baseInterestRate} onChange={(e) => setBaseInterestRate(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-orange-500 bg-gray-50/50" />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase">Hạn mức tối thiểu (VND)</label>
+              <input type="number" required placeholder="10000000" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-orange-500 bg-gray-50/50" />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase">Hạn mức tối đa (VND)</label>
+              <input type="number" required placeholder="2000000000" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-orange-500 bg-gray-50/50" />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase">Kỳ hạn ít nhất (Tháng)</label>
+              <input type="number" required placeholder="6" value={minTermMonths} onChange={(e) => setMinTermMonths(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-orange-500 bg-gray-50/50" />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase">Kỳ hạn tối đa (Tháng)</label>
+              <div className="mt-1 flex gap-2">
+                <input type="number" required placeholder="120" value={maxTermMonths} onChange={(e) => setMaxTermMonths(e.target.value)} className="h-9 w-full rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-orange-500 bg-gray-50/50" />
+                <button type="submit" disabled={formSubmitting} className="h-9 rounded-lg bg-gray-900 px-4 text-xs font-bold text-white transition hover:bg-gray-800 disabled:opacity-50">
+                  {formSubmitting ? "Lưu..." : "Khởi tạo"}
                 </button>
               </div>
-            ) : <div />}
+            </div>
+          </form>
+        )}
 
-            <div className="flex h-9 items-center gap-2 rounded-xl border border-black/10 bg-white px-3 w-64 shadow-3xs">
-              <span className="text-xs text-zinc-400">🔎</span>
+        {/* BỘ LỌC VÀ THANH TÌM KIẾM */}
+        <div className="flex flex-col items-end justify-between gap-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm md:flex-row md:items-center">
+          <div className="w-full md:w-2/3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <input
-                className="w-full bg-transparent text-xs outline-none font-medium text-zinc-700"
-                placeholder="Tra cứu thông tin nhanh..."
+                type="text"
+                placeholder="Tìm sản phẩm theo tên gói hoặc mã định danh..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 bg-gray-50/50 py-2 pl-9 pr-4 text-sm outline-none focus:border-orange-500"
               />
             </div>
           </div>
+<<<<<<< HEAD
 
           {/* RENDERING LUỒNG DIỄN TIẾN DỮ LIỆU CHÍNH */}
           {loading ? (
@@ -555,10 +538,93 @@ export default function AdminLoanDashboard() {
                 </div>
               </form>
             </div>
+=======
+          <div className="relative w-full md:w-56">
+            <button
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm text-gray-700"
+              type="button"
+            >
+              <span>{statusOptions.find((opt) => opt.value === statusFilter)?.label}</span>
+              <ChevronDown size={16} className={`text-gray-400 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
+            </button>
+            {isDropdownOpen && (
+              <div className="absolute right-0 top-full z-50 mt-1 w-full overflow-hidden rounded-lg border border-gray-100 bg-white py-1 shadow-xl">
+                {statusOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => { setStatusFilter(option.value); setIsDropdownOpen(false); }}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+>>>>>>> be053e22f2b4eb743f01d18529abcbe7afa7fdfa
           </div>
-        )}
+        </div>
 
-      </main>
-    </div>
+        {error && <div className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+        {/* BẢNG HIỂN THỊ CÁC GÓI SẢN PHẨM VAY */}
+        <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50 text-xs font-semibold uppercase text-gray-500">
+                  <th className="px-4 py-3.5">Mã gói</th>
+                  <th className="px-4 py-3.5">Tên sản phẩm</th>
+                  <th className="px-4 py-3.5">Phân loại</th>
+                  <th className="px-4 py-3.5 text-right">Hạn mức tối thiểu</th>
+                  <th className="px-4 py-3.5 text-right">Hạn mức tối đa</th>
+                  <th className="px-4 py-3.5 text-center">Kỳ hạn (Tháng)</th>
+                  <th className="px-4 py-3.5 text-right">Lãi suất cơ sở</th>
+                  <th className="px-4 py-3.5 text-center">Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-gray-700">
+                {loading ? (
+                  <tr><td colSpan={8} className="py-8 text-center text-gray-400">Đang tải danh sách sản phẩm tín dụng...</td></tr>
+                ) : filteredProducts.length === 0 ? (
+                  <tr><td colSpan={8} className="py-8 text-center text-gray-400">Không tìm thấy sản phẩm vay phù hợp tiêu chí lọc</td></tr>
+                ) : (
+                  filteredProducts.map((row) => (
+                    <tr key={row.id} className="transition-colors hover:bg-gray-50/50">
+                      <td className="px-4 py-4 font-bold text-blue-600 uppercase">{row.code}</td>
+                      <td className="px-4 py-4 font-semibold text-gray-900">{row.name}</td>
+                      <td className="px-4 py-4">
+                        <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 font-medium">
+                          {row.loanType}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-right font-mono text-xs text-gray-600">{formatVND(row.minAmount)}</td>
+                      <td className="px-4 py-4 text-right font-mono text-xs font-medium text-gray-900">{formatVND(row.maxAmount)}</td>
+                      <td className="px-4 py-4 text-center text-xs font-medium">{row.minTermMonths} - {row.maxTermMonths} m</td>
+                      <td className="px-4 py-4 text-right font-mono font-bold text-amber-600">{row.baseInterestRate}%/năm</td>
+                      <td className="px-4 py-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStatus(row.id, row.status)}
+                          className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${row.status.toLowerCase() === "active"
+                              ? "border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                              : "border-gray-200 bg-gray-100 text-gray-500 hover:bg-gray-200"
+                            }`}
+                        >
+                          {row.status.toLowerCase() === "active" ? <CheckCircle2 size={12} /> : <HelpCircle size={12} />}
+                          {row.status.toLowerCase() === "active" ? "Hoạt động" : "Tạm ngưng"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </AdminShell>
   );
 }
