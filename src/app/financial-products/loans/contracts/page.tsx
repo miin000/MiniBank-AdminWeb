@@ -93,7 +93,7 @@ export default function LoanManagementPage() {
   const [token, setToken] = useState<string | null>(null);
   const [items, setItems] = useState<LoanItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +119,8 @@ export default function LoanManagementPage() {
         },
       });
       if (!res.ok) throw new Error((await res.text()) || "Load failed");
-      setItems((await res.json()) as LoanItem[]);
+      const data = (await res.json()) as LoanItem[];
+      setItems(data.filter((item) => item.status?.toLowerCase() !== "closed"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Load failed");
     } finally {
@@ -141,7 +142,10 @@ export default function LoanManagementPage() {
         item.disbursementAccountNumber,
         item.repaymentAccountNumber,
       ].filter(Boolean).some((value) => value!.toLowerCase().includes(q));
-      const matchesStatus = statusFilter !== "overdue" || isOverdue(item);
+      const matchesStatus =
+        item.status?.toLowerCase() !== "closed" &&
+        (statusFilter === "ALL" ||
+          (statusFilter === "overdue" ? isOverdue(item) : item.status?.toLowerCase() === statusFilter));
       return matchesQuery && matchesStatus;
     });
   }, [items, searchQuery, statusFilter]);

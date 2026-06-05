@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { Eye, Filter } from "lucide-react";
+import { Check, Eye, Filter, X } from "lucide-react";
 
 import AdminShell from "../components/admin-shell";
 
 import {
     fetchServiceRequests,
+    approveServiceRequest,
+    rejectServiceRequest,
     ServiceRequestSummary,
 } from "../../lib/api/service-requests";
 
@@ -15,12 +16,23 @@ import { StatusBadge } from "../components/requests/StatusBadge";
 import { TypeBadge } from "../components/requests/TypeBadge";
 
 const TYPE_OPTIONS = [
-    { value: "", label: "Tất cả loại" },
-    { value: "limit_change", label: "Nâng hạn mức" },
-    { value: "profile_change", label: "Đổi thông tin" },
+    { value: "", label: "Tất cả yêu cầu khác" },
     { value: "close_account", label: "Tất toán số" },
     { value: "complaint", label: "Khiếu nại GD" },
+    { value: "card_support", label: "Hỗ trợ thẻ" },
+    { value: "other", label: "Khác" },
 ];
+
+const DEDICATED_REQUEST_TYPES = new Set([
+    "limit_change",
+    "profile_change",
+    "saving_approval",
+    "savings_approval",
+    "saving_closure",
+    "loan_approval",
+    "loan_application",
+    "loan_settlement",
+]);
 
 const STATUS_OPTIONS = [
     { value: "", label: "Tất cả trạng thái" },
@@ -49,8 +61,6 @@ function getInitial(name: string) {
 }
 
 export default function AllRequestsPage() {
-    const router = useRouter();
-
     const [requests, setRequests] = useState<ServiceRequestSummary[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -58,6 +68,9 @@ export default function AllRequestsPage() {
     const [search, setSearch] = useState("");
     const [typeFilter, setTypeFilter] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
+    const [selectedRequest, setSelectedRequest] = useState<ServiceRequestSummary | null>(null);
+    const [decisionNote, setDecisionNote] = useState("");
+    const [submitting, setSubmitting] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -69,7 +82,7 @@ export default function AllRequestsPage() {
                 typeFilter || undefined
             );
 
-            setRequests(data);
+            setRequests(data.filter((item) => !DEDICATED_REQUEST_TYPES.has(item.requestType?.toLowerCase())));
         } catch (e: unknown) {
             setError(
                 e instanceof Error
@@ -130,6 +143,29 @@ export default function AllRequestsPage() {
             new Date(a.submittedAt).getTime()
         );
     });
+
+    const handleDecision = async (decision: "approve" | "reject") => {
+        if (!selectedRequest) return;
+        if (decision === "reject" && !decisionNote.trim()) {
+            alert("Vui lòng nhập lý do từ chối yêu cầu.");
+            return;
+        }
+        setSubmitting(true);
+        try {
+            if (decision === "approve") {
+                await approveServiceRequest(selectedRequest.id, decisionNote.trim());
+            } else {
+                await rejectServiceRequest(selectedRequest.id, decisionNote.trim());
+            }
+            setSelectedRequest(null);
+            setDecisionNote("");
+            await load();
+        } catch (e) {
+            alert(e instanceof Error ? e.message : "Không thể xử lý yêu cầu");
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     return (
         <AdminShell
@@ -361,11 +397,7 @@ export default function AllRequestsPage() {
 
                                         <td className="px-4 py-3">
                                             <button
-                                                onClick={() =>
-                                                    router.push(
-                                                        `/requests/${req.id}`
-                                                    )
-                                                }
+                                                onClick={() => { setSelectedRequest(req); setDecisionNote(""); }}
                                                 className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
                                             >
                                                 <Eye className="w-4 h-4" />
@@ -380,6 +412,41 @@ export default function AllRequestsPage() {
                     )}
                 </div>
             </div>
+
+            {selectedRequest && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+                        <div className="mb-4 flex items-start justify-between gap-4">
+                            <div>
+                                <h2 className="text-lg font-bold text-gray-900">Duyệt yêu cầu khác SR{String(selectedRequest.id).padStart(3, "0")}</h2>
+                                <p className="mt-1 text-sm text-gray-500">{selectedRequest.userName} - {formatDate(selectedRequest.submittedAt)}</p>
+                            </div>
+                            <button onClick={() => setSelectedRequest(null)} className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700" type="button"><X size={18} /></button>
+                        </div>
+                        <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm">
+                            <div><span className="font-semibold text-gray-500">Loại yêu cầu: </span><TypeBadge type={selectedRequest.requestType} /></div>
+                            <div><span className="font-semibold text-gray-500">Tiêu đề: </span>{selectedRequest.title || "-"}</div>
+                            <div><span className="font-semibold text-gray-500">Trạng thái: </span><StatusBadge status={selectedRequest.status} /></div>
+                        </div>
+                        <label className="mt-4 block text-xs font-bold uppercase tracking-wide text-gray-500">Ghi chú xử lý</label>
+                        <textarea
+                            value={decisionNote}
+                            onChange={(e) => setDecisionNote(e.target.value)}
+                            rows={4}
+                            className="mt-2 w-full rounded-xl border border-gray-200 p-3 text-sm outline-none focus:border-blue-500"
+                            placeholder="Nhập ghi chú duyệt hoặc lý do từ chối..."
+                        />
+                        {selectedRequest.status?.toLowerCase() === "submitted" || selectedRequest.status?.toLowerCase() === "processing" ? (
+                            <div className="mt-5 grid grid-cols-2 gap-3">
+                                <button disabled={submitting} onClick={() => handleDecision("reject")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50" type="button"><X size={16} />Từ chối</button>
+                                <button disabled={submitting} onClick={() => handleDecision("approve")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50" type="button"><Check size={16} />Duyệt</button>
+                            </div>
+                        ) : (
+                            <button onClick={() => setSelectedRequest(null)} className="mt-5 h-11 w-full rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50" type="button">Đóng</button>
+                        )}
+                    </div>
+                </div>
+            )}
         </AdminShell>
     );
 }

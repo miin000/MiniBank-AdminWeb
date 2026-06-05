@@ -35,7 +35,11 @@ export interface ServiceRequestDetail extends ServiceRequestSummary {
     limitChange: LimitChange | null;
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
+const BASE_URL = (
+    process.env.NEXT_PUBLIC_API_BASE_URL ??
+    process.env.NEXT_PUBLIC_API_URL ??
+    "http://localhost:8080"
+).replace(/\/+$/, "");
 
 function getAuthHeader(): HeadersInit {
     if (typeof window === "undefined") return {};

@@ -2,7 +2,7 @@
 
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, ChevronDown, Clock, Search } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, Clock, Eye, Search, X } from "lucide-react";
 import AdminShell from "../../../components/admin-shell";
 
 const API_BASE = (
@@ -90,6 +90,7 @@ export default function LoanRepaymentPage() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedLoanCode, setSelectedLoanCode] = useState<string | null>(null);
 
   useEffect(() => {
     setToken(localStorage.getItem("adminToken"));
@@ -100,7 +101,7 @@ export default function LoanRepaymentPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/loans/repayment-schedules`, {
+      const res = await fetch(`${API_BASE}/api/admin/loan-repayment-schedules`, {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -121,7 +122,12 @@ export default function LoanRepaymentPage() {
 
   const filteredSchedules = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
+    const now = new Date();
     return schedules.filter((item) => {
+      const dueDate = new Date(item.dueDate);
+      const isCurrentMonth = !Number.isNaN(dueDate.getTime()) &&
+        dueDate.getFullYear() === now.getFullYear() &&
+        dueDate.getMonth() === now.getMonth();
       const matchesSearch = !query || [item.customerName, item.loanCode]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(query));
@@ -131,9 +137,26 @@ export default function LoanRepaymentPage() {
         (statusFilter === "overdue" && isOverdue(item)) ||
         (statusFilter === "upcoming" && isUpcoming(item)) ||
         (statusFilter === "unpaid" && !isPaid(item));
-      return matchesSearch && matchesStatus;
+      return isCurrentMonth && matchesSearch && matchesStatus;
     });
   }, [schedules, searchQuery, statusFilter]);
+
+  const selectedLoanSchedules = useMemo(() => {
+    if (!selectedLoanCode) return [];
+    return schedules
+      .filter((item) => item.loanCode === selectedLoanCode)
+      .sort((a, b) => a.installmentNo - b.installmentNo);
+  }, [schedules, selectedLoanCode]);
+
+  const selectedLoanSummary = useMemo(() => {
+    const items = selectedLoanSchedules;
+    return {
+      totalDue: items.reduce((sum, item) => sum + (item.totalAmount || 0), 0),
+      paidDue: items.reduce((sum, item) => sum + (item.paidAmount || 0), 0),
+      paidMonths: items.filter(isPaid).length,
+      remainingMonths: items.filter((item) => !isPaid(item)).length,
+    };
+  }, [selectedLoanSchedules]);
 
   const totalPeriods = schedules.length;
   const upcomingCount = schedules.filter(isUpcoming).length;
@@ -213,13 +236,14 @@ export default function LoanRepaymentPage() {
                   <th className="px-4 py-3.5 text-right">Tong phai tra</th>
                   <th className="px-4 py-3.5 text-right">Da tra</th>
                   <th className="px-4 py-3.5 text-center">Trang thai</th>
+                  <th className="px-4 py-3.5 text-center">Chi tiet</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
                 {loading ? (
-                  <tr><td colSpan={9} className="py-8 text-center text-gray-400">Dang tai...</td></tr>
+                  <tr><td colSpan={10} className="py-8 text-center text-gray-400">Dang tai...</td></tr>
                 ) : filteredSchedules.length === 0 ? (
-                  <tr><td colSpan={9} className="py-8 text-center text-gray-400">Khong co lich tra no phu hop</td></tr>
+                  <tr><td colSpan={10} className="py-8 text-center text-gray-400">Khong co lich tra no thang hien tai</td></tr>
                 ) : filteredSchedules.map((row) => (
                   <tr key={row.id} className="transition-colors hover:bg-gray-50/50">
                     <td className="px-4 py-4 font-medium text-gray-900">Ky {row.installmentNo}</td>
@@ -231,12 +255,36 @@ export default function LoanRepaymentPage() {
                     <td className="px-4 py-4 text-right font-semibold text-gray-900">{formatVND(row.totalAmount)}</td>
                     <td className="px-4 py-4 text-right font-semibold text-emerald-600">{formatVND(row.paidAmount)}</td>
                     <td className="px-4 py-4 text-center"><StatusBadge item={row} /></td>
+                    <td className="px-4 py-4 text-center">
+                      <button type="button" onClick={() => setSelectedLoanCode(row.loanCode)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50">
+                        <Eye size={13} /> Xem
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </div>
+        {selectedLoanCode ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
+              <div className="mb-4 flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Chi tiet lich tra no {selectedLoanCode}</h3>
+                  <p className="text-sm text-gray-500">{selectedLoanSchedules[0]?.customerName ?? "-"}</p>
+                </div>
+                <button type="button" onClick={() => setSelectedLoanCode(null)} className="rounded-full p-1 text-gray-400 hover:bg-gray-100"><X size={18} /></button>
+              </div>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-500">Tong phai tra</p><p className="font-bold text-gray-900">{formatVND(selectedLoanSummary.totalDue)}</p></div>
+                <div className="rounded-xl bg-emerald-50 p-3"><p className="text-xs text-emerald-600">Da tra</p><p className="font-bold text-emerald-700">{formatVND(selectedLoanSummary.paidDue)}</p></div>
+                <div className="rounded-xl bg-blue-50 p-3"><p className="text-xs text-blue-600">So thang da tra</p><p className="font-bold text-blue-700">{selectedLoanSummary.paidMonths}</p></div>
+                <div className="rounded-xl bg-amber-50 p-3"><p className="text-xs text-amber-600">So thang con lai</p><p className="font-bold text-amber-700">{selectedLoanSummary.remainingMonths}</p></div>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </AdminShell>
   );

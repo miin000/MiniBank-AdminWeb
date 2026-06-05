@@ -18,7 +18,7 @@ type DocumentSummary = {
     fileName: string;        // Khớp với cột file_name
     fileUrl: string;         // Đường dẫn URL lưu trong DB để xem/tải file
     mimeType: string;        // Định dạng file (image/png, application/pdf)
-    verifiedStatus: "PENDING" | "APPROVED" | "REJECTED"; // Khớp với Enum/String trạng thái trong DB
+    verifiedStatus: "pending" | "approved" | "rejected" | "PENDING" | "APPROVED" | "REJECTED";
     uploadedByType: string;
     uploadedById: number;
     uploadedAt: string;      // Thời gian Instant từ DB chuyển về dạng chuỗi ISO
@@ -78,7 +78,9 @@ export default function AdminCustomerDocumentsPage() {
 
             const data = await res.json();
 
-            if (data && data.content) {
+            if (data && data.items) {
+                setDocuments(data.items as DocumentSummary[]);
+            } else if (data && data.content) {
                 setDocuments(data.content as DocumentSummary[]);
             } else if (Array.isArray(data)) {
                 setDocuments(data as DocumentSummary[]);
@@ -116,7 +118,7 @@ export default function AdminCustomerDocumentsPage() {
                     Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify({
-                    status: targetStatus,          // String enum gửi lên: APPROVED hoặc REJECTED
+                    status: targetStatus.toLowerCase(),
                     note: reviewNote.trim() || "", // Ghi chú lưu trực tiếp vào trường note trong DB
                 }),
             });
@@ -146,7 +148,7 @@ export default function AdminCustomerDocumentsPage() {
                 doc.fileName.toLowerCase().includes(q) ||
                 doc.ownerId.toString().includes(q) ||
                 doc.documentType.toLowerCase().includes(q);
-            const matchesStatus = statusFilter === "ALL" || doc.verifiedStatus === statusFilter;
+            const matchesStatus = statusFilter === "ALL" || doc.verifiedStatus?.toUpperCase() === statusFilter;
             return matchesSearch && matchesStatus;
         });
     }, [documents, searchQuery, statusFilter]);
@@ -251,14 +253,14 @@ export default function AdminCustomerDocumentsPage() {
                                             </td>
                                             <td className="px-4 py-3.5 text-zinc-500">{new Date(doc.uploadedAt).toLocaleString("vi-VN")}</td>
                                             <td className="px-4 py-3.5">
-                                                <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${doc.verifiedStatus === "APPROVED" ? "border-emerald-100 bg-emerald-50 text-emerald-600" :
-                                                    doc.verifiedStatus === "REJECTED" ? "border-red-100 bg-red-50 text-red-600" :
+                                                <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${doc.verifiedStatus?.toUpperCase() === "APPROVED" ? "border-emerald-100 bg-emerald-50 text-emerald-600" :
+                                                    doc.verifiedStatus?.toUpperCase() === "REJECTED" ? "border-red-100 bg-red-50 text-red-600" :
                                                         "border-amber-100 bg-amber-50 text-amber-600"
                                                     }`}>
-                                                    {doc.verifiedStatus === "APPROVED" ? <CheckCircle2 size={11} /> :
-                                                        doc.verifiedStatus === "REJECTED" ? <XCircle size={11} /> :
+                                                    {doc.verifiedStatus?.toUpperCase() === "APPROVED" ? <CheckCircle2 size={11} /> :
+                                                        doc.verifiedStatus?.toUpperCase() === "REJECTED" ? <XCircle size={11} /> :
                                                             <AlertCircle size={11} />}
-                                                    {doc.verifiedStatus === "APPROVED" ? "Đã duyệt" : doc.verifiedStatus === "REJECTED" ? "Bị từ chối" : "Chờ thẩm định"}
+                                                    {doc.verifiedStatus?.toUpperCase() === "APPROVED" ? "Đã duyệt" : doc.verifiedStatus?.toUpperCase() === "REJECTED" ? "Bị từ chối" : "Chờ thẩm định"}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3.5 text-center">
@@ -267,7 +269,7 @@ export default function AdminCustomerDocumentsPage() {
                                                     onClick={() => { setSelectedDoc(doc); setReviewNote(doc.note ?? ""); }}
                                                     className="inline-flex h-7 items-center gap-1 rounded-lg border border-black/10 bg-white px-2.5 text-[11px] font-bold text-zinc-700 shadow-sm hover:bg-zinc-50 transition"
                                                 >
-                                                    <Eye size={12} /> {doc.verifiedStatus === "PENDING" ? "Thẩm định" : "Xem chi tiết"}
+                                                    <Eye size={12} /> {doc.verifiedStatus?.toUpperCase() === "PENDING" ? "Thẩm định" : "Xem chi tiết"}
                                                 </button>
                                             </td>
                                         </tr>
@@ -338,7 +340,7 @@ export default function AdminCustomerDocumentsPage() {
                                                 placeholder="Nếu bạn bấm 'Từ chối hồ sơ', bắt buộc điền chi tiết lý do tại đây để lưu giữ vết thông tin trong DB..."
                                                 value={reviewNote}
                                                 onChange={(e) => setReviewNote(e.target.value)}
-                                                disabled={selectedDoc.verifiedStatus !== "PENDING" || submitting}
+                                                disabled={selectedDoc.verifiedStatus?.toUpperCase() !== "PENDING" || submitting}
                                                 className="mt-1.5 w-full rounded-xl border border-black/10 p-3 text-xs outline-none focus:border-orange-600 disabled:bg-zinc-50 disabled:text-zinc-500 bg-zinc-50/50 resize-none transition"
                                             />
                                         </div>
@@ -346,7 +348,7 @@ export default function AdminCustomerDocumentsPage() {
 
                                     {/* Cụm nút bấm tương tác trực tiếp lên DB */}
                                     <div className="border-t border-zinc-100 pt-4 mt-6">
-                                        {selectedDoc.verifiedStatus === "PENDING" ? (
+                                        {selectedDoc.verifiedStatus?.toUpperCase() === "PENDING" ? (
                                             <div className="grid grid-cols-2 gap-2">
                                                 <button
                                                     type="button"

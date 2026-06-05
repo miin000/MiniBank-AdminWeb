@@ -14,6 +14,8 @@ interface UserSummary {
     deviceId: string;
 }
 
+type CustomerModalMode = "balance" | "edit";
+
 const API_BASE = (
     process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080"
 ).replace(/\/+$/, "");
@@ -29,6 +31,8 @@ export default function CustomerListPage() {
 
     // States cho Modal Nạp/Rút tiền
     const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
+    const [modalMode, setModalMode] = useState<CustomerModalMode>("balance");
+    const [editForm, setEditForm] = useState({ fullName: "", phone: "", email: "", customerRank: "", status: "" });
     const [amount, setAmount] = useState("");
     const [isAdjusting, setIsAdjusting] = useState(false);
     const [adjustType, setAdjustType] = useState<"cash-in" | "cash-out" | null>(null);
@@ -95,6 +99,51 @@ export default function CustomerListPage() {
             alert("Lỗi kết nối hệ thống.");
         } finally {
             setIsAdjusting(false);
+        }
+    };
+
+    const openEditModal = (user: UserSummary) => {
+        setSelectedUser(user);
+        setModalMode("edit");
+        setEditForm({
+            fullName: user.fullName || "",
+            phone: user.phone || "",
+            email: user.email || "",
+            customerRank: user.customerRank || "",
+            status: user.status || "active",
+        });
+    };
+
+    const handleUpdateCustomer = async () => {
+        if (!selectedUser) return;
+        try {
+            const token = localStorage.getItem("adminToken");
+            const res = await fetch(`${API_BASE}/api/admin/customers/${selectedUser.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify(editForm),
+            });
+            if (!res.ok) throw new Error(await res.text());
+            setSelectedUser(null);
+            fetchCustomers();
+        } catch (err) {
+            alert(`Không thể cập nhật khách hàng: ${err instanceof Error ? err.message : "Lỗi kết nối"}`);
+        }
+    };
+
+    const handleToggleLock = async (user: UserSummary) => {
+        const isLocked = user.status?.toLowerCase() === "locked";
+        if (!confirm(`${isLocked ? "Mở khóa" : "Khóa"} khách hàng ${user.fullName || user.id}?`)) return;
+        try {
+            const token = localStorage.getItem("adminToken");
+            const res = await fetch(`${API_BASE}/api/admin/customers/${user.id}/${isLocked ? "unlock" : "lock"}`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!res.ok) throw new Error(await res.text());
+            fetchCustomers();
+        } catch (err) {
+            alert(`Không thể đổi trạng thái khách hàng: ${err instanceof Error ? err.message : "Lỗi kết nối"}`);
         }
     };
 
@@ -166,10 +215,22 @@ export default function CustomerListPage() {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <button
-                                            onClick={() => { setSelectedUser(user); setAdjustType("cash-in"); }}
+                                            onClick={() => { setSelectedUser(user); setModalMode("balance"); setAdjustType("cash-in"); }}
                                             className="rounded-lg border border-black/5 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 shadow-sm transition hover:bg-blue-50"
                                         >
                                             Điều chỉnh số dư
+                                        </button>
+                                        <button
+                                            onClick={() => openEditModal(user)}
+                                            className="ml-2 rounded-lg border border-black/5 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 shadow-sm transition hover:bg-zinc-50"
+                                        >
+                                            Sửa thông tin
+                                        </button>
+                                        <button
+                                            onClick={() => handleToggleLock(user)}
+                                            className="ml-2 rounded-lg border border-black/5 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 shadow-sm transition hover:bg-red-50"
+                                        >
+                                            {user.status?.toLowerCase() === "locked" ? "Mở khóa" : "Khóa"}
                                         </button>
                                     </td>
                                 </tr>
@@ -179,7 +240,7 @@ export default function CustomerListPage() {
                 </table>
             </div>
 
-            {selectedUser && (
+            {selectedUser && modalMode === "balance" && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
                     <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl transition-all">
                         <div className="mb-6 flex items-center justify-between">
@@ -228,6 +289,38 @@ export default function CustomerListPage() {
                                 } disabled:opacity-50`}
                         >
                             {isAdjusting ? "Đang xử lý..." : "Xác nhận giao dịch"}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {selectedUser && modalMode === "edit" && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-2xl">
+                        <div className="mb-6 flex items-center justify-between">
+                            <h2 className="text-xl font-semibold">Sửa thông tin khách hàng</h2>
+                            <button onClick={() => setSelectedUser(null)} className="text-2xl text-zinc-400 hover:text-black">×</button>
+                        </div>
+                        <div className="grid gap-4">
+                            {[
+                                ["fullName", "Họ tên"],
+                                ["phone", "Số điện thoại"],
+                                ["email", "Email"],
+                                ["customerRank", "Hạng khách hàng"],
+                                ["status", "Trạng thái"],
+                            ].map(([key, label]) => (
+                                <label key={key} className="text-xs font-bold uppercase text-zinc-500">
+                                    {label}
+                                    <input
+                                        className="mt-1 h-11 w-full rounded-xl border border-black/10 px-4 text-sm font-medium normal-case text-zinc-800 outline-none focus:border-blue-400"
+                                        value={editForm[key as keyof typeof editForm]}
+                                        onChange={(e) => setEditForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                                    />
+                                </label>
+                            ))}
+                        </div>
+                        <button onClick={handleUpdateCustomer} className="mt-6 h-12 w-full rounded-xl bg-blue-600 text-sm font-bold text-white shadow-md hover:bg-blue-700">
+                            Lưu thay đổi
                         </button>
                     </div>
                 </div>

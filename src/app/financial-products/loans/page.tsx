@@ -1,42 +1,29 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, ChevronDown, PlusCircle, Search, HelpCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, HelpCircle, PlusCircle, Search } from "lucide-react";
 import AdminShell from "../../components/admin-shell";
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:8080"
-).replace(/\/+$/, "");
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080").replace(/\/+$/, "");
 
-// Khớp chính xác với cấu trúc LoanProductItem trong AdminFinancialProductController.java
-type LoanProductItem = {
-  id: number;
-  code: string;
-  name: string;
-  loanType: string;
-  currency: string;
-  minAmount: number;
-  maxAmount: number;
-  minTermMonths: number;
-  maxTermMonths: number;
-  baseInterestRate: number;
-  status: string;
-};
+type LoanProductItem = { id:number; code:string; name:string; loanType:string; currency:string; minAmount:number; maxAmount:number; minTermMonths:number; maxTermMonths:number; baseInterestRate:number; status:string; };
 
 const statusOptions = [
-  { value: "ALL", label: "Tất cả trạng thái" },
-  { value: "active", label: "Đang hoạt động (Active)" },
-  { value: "inactive", label: "Tạm ngưng (Inactive)" },
+  { value: "ALL", label: "Tat ca trang thai" },
+  { value: "active", label: "Dang hoat dong" },
+  { value: "inactive", label: "Tam ngung" },
 ];
 
-function formatVND(value: number) {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(value);
+function formatVND(value: number) { return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(value ?? 0); }
+function formatLoanType(value: string | null | undefined) {
+  const v = (value ?? "").toUpperCase();
+  if (["SECURED", "MORTGAGE", "COLLATERAL"].includes(v)) return "The chap";
+  if (["UNSECURED", "PERSONAL", "CREDIT"].includes(v)) return "Tin chap";
+  return value || "Chua phan loai";
+}
+function loanTypeTone(value: string | null | undefined) {
+  const v = (value ?? "").toUpperCase();
+  return ["SECURED", "MORTGAGE", "COLLATERAL"].includes(v) ? "border-blue-100 bg-blue-50 text-blue-700" : "border-amber-100 bg-amber-50 text-amber-700";
 }
 
 export default function LoanProductsPage() {
@@ -47,584 +34,64 @@ export default function LoanProductsPage() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-<<<<<<< HEAD
-  // Điều khiển Modal Thêm mới Gói Vay (Nhiệm vụ 2)
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [productForm, setProductForm] = useState<LoanProductForm>({
-    code: "", name: "", loanType: "UNSECURED", currency: "VND",
-    minAmount: "", maxAmount: "", minTermMonths: "", maxTermMonths: "", baseInterestRate: ""
-  });
-=======
-  // States cho Form Thêm gói sản phẩm vay mới
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [loanType, setLoanType] = useState("PERSONAL");
-  const [minAmount, setMinAmount] = useState("");
-  const [maxAmount, setMaxAmount] = useState("");
-  const [minTermMonths, setMinTermMonths] = useState("");
-  const [maxTermMonths, setMaxTermMonths] = useState("");
-  const [baseInterestRate, setBaseInterestRate] = useState("");
   const [formSubmitting, setFormSubmitting] = useState(false);
->>>>>>> be053e22f2b4eb743f01d18529abcbe7afa7fdfa
+  const [form, setForm] = useState({ code:"", name:"", loanType:"UNSECURED", minAmount:"", maxAmount:"", minTermMonths:"", maxTermMonths:"", baseInterestRate:"" });
 
-  useEffect(() => {
-    setToken(localStorage.getItem("adminToken"));
-  }, []);
+  useEffect(() => { setToken(localStorage.getItem("adminToken")); }, []);
 
-<<<<<<< HEAD
-  const headers = useMemo(() => ({
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${token}`
-  }), [token]);
-
-  // ==============================================================
-  // CÁC HÀM ĐỒNG BỘ ĐỒNG THỜI VỚI CÁC CONTROLLER TRÊN BACKEND
-  // ==============================================================
-
-  // Tải danh sách đơn xin vay & Khế ước (Nhiệm vụ 1)
-  const loadLoanManagementData = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      // Gọi cụm API thẩm định
-      const resApp = await fetch(`${API_BASE}/api/mobile/loans/applications`, { headers });
-      if (resApp.ok) setApplications(await resApp.json());
-
-      const resContract = await fetch(`${API_BASE}/api/mobile/contracts`, { headers });
-      if (resContract.ok) setContracts(await resContract.json());
-    } catch (err) {
-      console.error("Lỗi đồng bộ dữ liệu tín dụng khế ước", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [token, headers]);
-
-  // Tải sản phẩm và Khung bậc lãi suất từ AdminFinancialProductController (Nhiệm vụ 2)
-  const loadProductData = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const resProd = await fetch(`${API_BASE}/api/admin/financial-products/loan-products`, { headers });
-      if (resProd.ok) setProducts(await resProd.json());
-
-      const resTier = await fetch(`${API_BASE}/api/admin/financial-products/loan-interest-tiers`, { headers });
-      if (resTier.ok) setTiers(await resTier.json());
-    } catch (err) {
-      console.error("Lỗi đọc danh mục cấu hình", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [token, headers]);
-=======
-  // Gọi API lấy danh sách gói vay
   const fetchLoanProducts = useCallback(async () => {
     if (!token) return;
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/financial-products/loan-products`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (!res.ok) throw new Error((await res.text()) || "Không thể tải danh sách sản phẩm vay");
+      const res = await fetch(`${API_BASE}/api/admin/financial-products/loan-products`, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error((await res.text()) || "Khong the tai danh sach san pham vay");
       setProducts((await res.json()) as LoanProductItem[]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Có lỗi xảy ra khi kết nối API");
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { setError(err instanceof Error ? err.message : "Co loi khi ket noi API"); }
+    finally { setLoading(false); }
   }, [token]);
->>>>>>> be053e22f2b4eb743f01d18529abcbe7afa7fdfa
 
-  useEffect(() => {
-    fetchLoanProducts();
-  }, [fetchLoanProducts]);
+  useEffect(() => { fetchLoanProducts(); }, [fetchLoanProducts]);
 
-  // Gửi dữ liệu tạo mới lên Backend (Khớp LoanProductUpsertRequest)
   const handleCreateLoanProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token) return;
-    setFormSubmitting(true);
+    e.preventDefault(); if (!token) return; setFormSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/financial-products/loan-products`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          code,
-          name,
-          loanType,
-          currency: "VND",
-          minAmount: parseFloat(minAmount),
-          maxAmount: parseFloat(maxAmount),
-          minTermMonths: parseInt(minTermMonths),
-          maxTermMonths: parseInt(maxTermMonths),
-          interestRateType: "FIXED",
-          baseInterestRate: parseFloat(baseInterestRate),
-          status: "active",
-        }),
-      });
-
-      if (res.ok) {
-<<<<<<< HEAD
-        setIsModalOpen(false);
-        setProductForm({ code: "", name: "", loanType: "UNSECURED", currency: "VND", minAmount: "", maxAmount: "", minTermMonths: "", maxTermMonths: "", baseInterestRate: "" });
-        loadProductData();
-=======
-        setShowCreateForm(false);
-        setCode("");
-        setName("");
-        setMinAmount("");
-        setMaxAmount("");
-        setMinTermMonths("");
-        setMaxTermMonths("");
-        setBaseInterestRate("");
-        fetchLoanProducts(); // Tải lại bảng dữ liệu
-      } else {
-        const errMsg = await res.text();
-        alert(`Lỗi từ hệ thống: ${errMsg}`);
->>>>>>> be053e22f2b4eb743f01d18529abcbe7afa7fdfa
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Không thể kết nối đến máy chủ Backend.");
-    } finally {
-      setFormSubmitting(false);
-    }
+      const res = await fetch(`${API_BASE}/api/admin/financial-products/loan-products`, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` }, body: JSON.stringify({ ...form, currency:"VND", minAmount:Number(form.minAmount), maxAmount:Number(form.maxAmount), minTermMonths:Number(form.minTermMonths), maxTermMonths:Number(form.maxTermMonths), interestRateType:"FIXED", baseInterestRate:Number(form.baseInterestRate), status:"active" }) });
+      if (!res.ok) throw new Error(await res.text());
+      setShowCreateForm(false); setForm({ code:"", name:"", loanType:"UNSECURED", minAmount:"", maxAmount:"", minTermMonths:"", maxTermMonths:"", baseInterestRate:"" }); fetchLoanProducts();
+    } catch (err) { alert(err instanceof Error ? err.message : "Khong the tao san pham vay"); }
+    finally { setFormSubmitting(false); }
   };
 
-  // Cập nhật trạng thái Active/Inactive nhanh qua API PatchMapping
   const handleToggleStatus = async (id: number, currentStatus: string) => {
-    if (!token) return;
-    const nextStatus = currentStatus.toLowerCase() === "active" ? "inactive" : "active";
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/financial-products/loan-products/${id}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: nextStatus }),
-      });
-      if (res.ok) {
-        fetchLoanProducts();
-      }
-    } catch (err) {
-      console.error("Lỗi cập nhật trạng thái:", err);
-    }
+    if (!token) return; const nextStatus = currentStatus.toLowerCase() === "active" ? "inactive" : "active";
+    const res = await fetch(`${API_BASE}/api/admin/financial-products/loan-products/${id}/status`, { method:"PATCH", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` }, body: JSON.stringify({ status: nextStatus }) });
+    if (res.ok) fetchLoanProducts();
   };
 
-  // Bộ lọc Client-side tìm kiếm
   const filteredProducts = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    return products.filter((item) => {
-      const matchesSearch =
-        !query ||
-        item.name.toLowerCase().includes(query) ||
-        item.code.toLowerCase().includes(query);
-      const matchesStatus =
-        statusFilter === "ALL" || item.status.toLowerCase() === statusFilter.toLowerCase();
-      return matchesSearch && matchesStatus;
-    });
+    const q = searchQuery.trim().toLowerCase();
+    return products.filter((p) => (!q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q) || formatLoanType(p.loanType).toLowerCase().includes(q)) && (statusFilter === "ALL" || p.status.toLowerCase() === statusFilter.toLowerCase()));
   }, [products, searchQuery, statusFilter]);
 
-  if (!token) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f6f7fb] px-6">
-        <div className="rounded-xl bg-white p-6 text-sm text-gray-600 shadow">
-          Vui lòng đăng nhập tài khoản Admin/Staff để tiếp tục quản trị sản phẩm tài chính.
-        </div>
-      </div>
-    );
-  }
+  if (!token) return <div className="flex min-h-screen items-center justify-center bg-[#f6f7fb] px-6"><div className="rounded-xl bg-white p-6 text-sm text-gray-600 shadow">Vui long dang nhap Admin.</div></div>;
 
-  return (
-    <AdminShell title="Gói sản phẩm vay" subtitle="Cấu hình danh mục, hạn mức và lãi suất cơ sở của dịch vụ tín dụng">
-      <div className="space-y-6 font-sans text-gray-800">
-
-        {/* Tiêu đề & Nút bật tắt Form thêm nhanh */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-base font-bold text-gray-900">Danh sách sản phẩm vay hiện hành</h2>
-          <button
-            onClick={() => setShowCreateForm(!showCreateForm)}
-            className="flex items-center gap-1.5 rounded-xl bg-orange-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-orange-700"
-          >
-            <PlusCircle size={14} /> {showCreateForm ? "Đóng trình tạo" : "Thêm gói vay mới"}
-          </button>
-        </div>
-
-        {/* FORM THÊM GÓI SẢN PHẨM MỚI */}
-        {showCreateForm && (
-          <form onSubmit={handleCreateLoanProduct} className="grid grid-cols-1 gap-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm sm:grid-cols-2 md:grid-cols-4">
-            <div>
-              <label className="text-xs font-bold text-gray-500 uppercase">Mã gói vay</label>
-              <input type="text" required placeholder="Ví dụ: VMN01" value={code} onChange={(e) => setCode(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-orange-500 bg-gray-50/50" />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-500 uppercase">Tên gói sản phẩm</label>
-              <input type="text" required placeholder="Vay mua nhà ưu đãi" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-orange-500 bg-gray-50/50" />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-500 uppercase">Loại hình vay</label>
-              <select value={loanType} onChange={(e) => setLoanType(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-2 text-xs outline-none focus:border-orange-500 bg-gray-50/50">
-                <option value="PERSONAL">Vay cá nhân (Personal)</option>
-                <option value="BUSINESS">Vay doanh nghiệp (Business)</option>
-                <option value="MORTGAGE">Vay thế chấp (Mortgage)</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-500 uppercase">Lãi suất cơ sở (%/Năm)</label>
-              <input type="number" step="0.01" required placeholder="6.8" value={baseInterestRate} onChange={(e) => setBaseInterestRate(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-orange-500 bg-gray-50/50" />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-500 uppercase">Hạn mức tối thiểu (VND)</label>
-              <input type="number" required placeholder="10000000" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-orange-500 bg-gray-50/50" />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-500 uppercase">Hạn mức tối đa (VND)</label>
-              <input type="number" required placeholder="2000000000" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-orange-500 bg-gray-50/50" />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-500 uppercase">Kỳ hạn ít nhất (Tháng)</label>
-              <input type="number" required placeholder="6" value={minTermMonths} onChange={(e) => setMinTermMonths(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-orange-500 bg-gray-50/50" />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-500 uppercase">Kỳ hạn tối đa (Tháng)</label>
-              <div className="mt-1 flex gap-2">
-                <input type="number" required placeholder="120" value={maxTermMonths} onChange={(e) => setMaxTermMonths(e.target.value)} className="h-9 w-full rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-orange-500 bg-gray-50/50" />
-                <button type="submit" disabled={formSubmitting} className="h-9 rounded-lg bg-gray-900 px-4 text-xs font-bold text-white transition hover:bg-gray-800 disabled:opacity-50">
-                  {formSubmitting ? "Lưu..." : "Khởi tạo"}
-                </button>
-              </div>
-            </div>
-          </form>
-        )}
-
-        {/* BỘ LỌC VÀ THANH TÌM KIẾM */}
-        <div className="flex flex-col items-end justify-between gap-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm md:flex-row md:items-center">
-          <div className="w-full md:w-2/3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-              <input
-                type="text"
-                placeholder="Tìm sản phẩm theo tên gói hoặc mã định danh..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-gray-50/50 py-2 pl-9 pr-4 text-sm outline-none focus:border-orange-500"
-              />
-            </div>
-          </div>
-<<<<<<< HEAD
-
-          {/* RENDERING LUỒNG DIỄN TIẾN DỮ LIỆU CHÍNH */}
-          {loading ? (
-            <div className="py-12 text-center text-xs font-semibold text-zinc-400">Đang đồng bộ dữ liệu từ Cơ sở dữ liệu Core-Banking...</div>
-          ) : (
-            <>
-              {/* PHÂN HỆ 1: QUẢN LÝ HỒ SƠ & KHẾ ƯỚC VAY */}
-              {mainMenu === "loans" && loanSubTab === "applications" && (
-                <div className="rounded-2xl border border-black/5 bg-white overflow-hidden shadow-sm">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-zinc-50/70 border-b border-zinc-100 text-zinc-400 font-bold uppercase text-[11px]">
-                        <th className="p-4">Mã hồ sơ</th>
-                        <th className="p-4">Tên khách hàng</th>
-                        <th className="p-4">Sản phẩm vay</th>
-                        <th className="p-4 text-right">Số tiền đề xuất</th>
-                        <th className="p-4 text-center">Kỳ hạn</th>
-                        <th className="p-4">Lý do/Mục đích vay vốn</th>
-                        <th className="p-4 text-center">Trạng thái</th>
-                        <th className="p-4 text-right">Thao tác duyệt</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-100 font-semibold text-zinc-700">
-                      {applications.length === 0 ? (
-                        <tr><td colSpan={8} className="p-4 text-center text-zinc-400">Không có đơn yêu cầu cấp tín dụng nào cần phê duyệt.</td></tr>
-                      ) : (
-                        applications.map((app) => (
-                          <tr key={app.id} className="hover:bg-zinc-50/30">
-                            <td className="p-4 font-bold text-zinc-950">{app.applicationCode}</td>
-                            <td className="p-4 text-zinc-950">{app.customerName}</td>
-                            <td className="p-4 text-zinc-500">{app.loanProductName}</td>
-                            <td className="p-4 text-right font-bold text-zinc-950">{formatCurrency(app.requestedAmount)}</td>
-                            <td className="p-4 text-center font-mono">{app.termMonths}T</td>
-                            <td className="p-4 text-zinc-500 max-w-xs truncate">{app.purpose}</td>
-                            <td className="p-4 text-center">
-                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md uppercase ${app.status === "PENDING" ? "bg-amber-50 text-amber-600 border border-amber-200" : app.status === "APPROVED" ? "bg-emerald-50 text-emerald-600 border border-emerald-200" : "bg-rose-50 text-rose-600 border border-rose-200"}`}>
-                                {app.status === "PENDING" ? "Chờ duyệt" : app.status === "APPROVED" ? "Đã duyệt" : "Từ chối"}
-                              </span>
-                            </td>
-                            <td className="p-4 text-right">
-                              {app.status === "PENDING" && (
-                                <div className="flex gap-1 justify-end">
-                                  <button onClick={() => handleUpdateAppStatus(app.id, "APPROVED")} className="bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-[11px] font-bold">Duyệt</button>
-                                  <button onClick={() => handleUpdateAppStatus(app.id, "REJECTED")} className="bg-rose-500 text-white px-2.5 py-1 rounded-lg text-[11px] font-bold">Từ chối</button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {mainMenu === "loans" && loanSubTab === "contracts" && (
-                <div className="rounded-2xl border border-black/5 bg-white overflow-hidden shadow-sm">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-zinc-50/70 border-b border-zinc-100 text-zinc-400 font-bold uppercase text-[11px]">
-                        <th className="p-4">Mã hợp đồng (Khế ước)</th>
-                        <th className="p-4">Chủ khoản vay</th>
-                        <th className="p-4">Số tài khoản giải ngân</th>
-                        <th className="p-4 text-right">Tổng dư nợ gốc</th>
-                        <th className="p-4 text-center">Lãi suất áp dụng</th>
-                        <th className="p-4 text-center">Thời gian vay</th>
-                        <th className="p-4 text-center">Tình trạng nợ</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-100 font-semibold text-zinc-700">
-                      {contracts.length === 0 ? (
-                        <tr><td colSpan={7} className="p-4 text-center text-zinc-400">Hệ thống chưa ghi nhận hợp đồng giải ngân tín dụng nào hoạt động.</td></tr>
-                      ) : (
-                        contracts.map((c) => (
-                          <tr key={c.id}>
-                            <td className="p-4 font-bold text-zinc-950">{c.code}</td>
-                            <td className="p-4 text-zinc-950">{c.customerName}</td>
-                            <td className="p-4 font-mono text-zinc-500">{c.accountNo || "Tài khoản Core"}</td>
-                            <td className="p-4 text-right font-bold text-zinc-950">{formatCurrency(c.amount)}</td>
-                            <td className="p-4 text-center text-orange-600 font-bold">{formatPercent(c.interestRate)}</td>
-                            <td className="p-4 text-center">{c.termMonths} tháng</td>
-                            <td className="p-4 text-center">
-                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${c.status === "QUA_HAN" ? "bg-rose-50 text-rose-600 border border-rose-200" : "bg-emerald-50 text-emerald-600 border border-emerald-200"}`}>
-                                {c.status || "ĐANG TRONG KỲ VAY"}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* PHÂN HỆ 2: DANH MỤC SẢN PHẨM VAY (ADMIN FINANCIAL PRODUCT CONTROLLER) */}
-              {mainMenu === "products" && (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {filteredProducts.map((p) => (
-                    <div key={p.id} className="rounded-2xl border border-black/5 bg-white p-5 shadow-2xs flex flex-col justify-between hover:shadow-xs transition-shadow">
-                      <div>
-                        <div className="flex justify-between items-start">
-                          <span className="text-[10px] font-mono font-bold bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-md">Mã: {p.code}</span>
-                          <button
-                            onClick={() => handleToggleProductStatus(p.id, p.status)}
-                            className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${p.status === "active" ? "bg-orange-600 flex justify-end" : "bg-zinc-200 flex justify-start"}`}
-                          >
-                            <span className="w-4 h-4 rounded-full bg-white shadow-xs" />
-                          </button>
-                        </div>
-                        <h4 className="text-sm font-bold text-zinc-950 mt-2">{p.name}</h4>
-                        <p className="text-[11px] font-bold text-zinc-400 mt-0.5 uppercase tracking-wide">{p.loanType === "SECURED" ? "Thế chấp" : "Tín chấp"}</p>
-
-                        <div className="mt-4 pt-4 border-t border-zinc-100 space-y-2 text-xs font-semibold text-zinc-500">
-                          <div className="flex justify-between"><span>Biên hạn mức:</span><span className="text-zinc-950 font-mono">{formatCurrency(p.minAmount)} - {formatCurrency(p.maxAmount)}</span></div>
-                          <div className="flex justify-between"><span>Khung kỳ hạn:</span><span className="text-zinc-950">{p.minTermMonths} - {p.maxTermMonths} tháng</span></div>
-                          <div className="flex justify-between"><span>Lãi suất cơ sở:</span><span className="text-orange-600 font-bold">{formatPercent(p.baseInterestRate)} / năm</span></div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* PHÂN HỆ 3: QUẢN LÝ BẬC LÃI SUẤT VAY (LOAN TIER ITEM) */}
-              {mainMenu === "tiers" && (
-                <div className="rounded-2xl border border-black/5 bg-white overflow-hidden shadow-sm">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-zinc-50/70 border-b border-zinc-100 text-zinc-400 font-bold uppercase text-[11px]">
-                        <th className="p-4">ID Bậc</th>
-                        <th className="p-4">Thuộc sản phẩm gốc</th>
-                        <th className="p-4 text-right">Số tiền tối thiểu</th>
-                        <th className="p-4 text-right">Số tiền tối đa</th>
-                        <th className="p-4 text-center">Kỳ hạn áp dụng</th>
-                        <th className="p-4 text-center">Lãi suất bậc định danh</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-100 font-semibold text-zinc-700">
-                      {tiers.length === 0 ? (
-                        <tr><td colSpan={6} className="p-4 text-center text-zinc-400">Chưa thiết lập khung cấu hình bậc lãi suất lũy tiến nào trong CSDL.</td></tr>
-                      ) : (
-                        tiers.map((t) => (
-                          <tr key={t.id}>
-                            <td className="p-4 font-mono text-zinc-400">#TIER-{t.id}</td>
-                            <td className="p-4 text-zinc-950">{t.loanProductName}</td>
-                            <td className="p-4 text-right font-mono text-zinc-600">{formatCurrency(t.minAmount)}</td>
-                            <td className="p-4 text-right font-mono text-zinc-600">{formatCurrency(t.maxAmount)}</td>
-                            <td className="p-4 text-center">{t.minTermMonths} - {t.maxTermMonths} tháng</td>
-                            <td className="p-4 text-center text-orange-600 font-black text-sm">{formatPercent(t.interestRate)}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          )}
-        </AdminShell>
-
-        {/* ============================================================== */}
-        {/* MODAL THÊM SẢN PHẨM MỚI (PHỤC VỤ LUỒNG QUẢN TRỊ VIÊN) */}
-        {/* ============================================================== */}
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fade-in">
-            <div className="w-full max-w-lg rounded-2xl border border-black/5 bg-white p-6 shadow-xl">
-              <div className="border-b border-zinc-100 pb-3 mb-4">
-                <h3 className="text-sm font-bold text-zinc-950 uppercase tracking-wide">Cấu hình thông số sản phẩm tín dụng mới</h3>
-                <p className="text-xs text-zinc-400">Thông tin sẽ ngay lập tức đồng bộ hóa sang bảng cơ sở dữ liệu hệ thống.</p>
-              </div>
-
-              <form onSubmit={handleCreateProduct} className="grid grid-cols-2 gap-4">
-                <div className="col-span-1">
-                  <label className="text-[11px] font-bold text-zinc-500 uppercase">Mã sản phẩm định danh</label>
-                  <input required className="mt-1 h-9 w-full rounded-xl border border-black/10 px-3 text-xs outline-none focus:border-orange-600 font-semibold" value={productForm.code} onChange={(e) => setProductForm({ ...productForm, code: e.target.value })} placeholder="Ví dụ: LOAN_FAST_2026" />
-                </div>
-                <div className="col-span-1">
-                  <label className="text-[11px] font-bold text-zinc-500 uppercase">Tên thương mại gói vay</label>
-                  <input required className="mt-1 h-9 w-full rounded-xl border border-black/10 px-3 text-xs outline-none focus:border-orange-600 font-semibold" value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} placeholder="Ví dụ: Vay mua ô tô ưu đãi" />
-                </div>
-
-                <div className="col-span-1">
-                  <label className="text-[11px] font-bold text-zinc-500 uppercase">Phân loại nghiệp vụ</label>
-                  <select className="mt-1 h-9 w-full rounded-xl border border-black/10 px-3 text-xs bg-white font-semibold outline-none" value={productForm.loanType} onChange={(e) => setProductForm({ ...productForm, loanType: e.target.value })}>
-                    <option value="UNSECURED">Tín chấp</option>
-                    <option value="SECURED">Thế chấp</option>
-                  </select>
-                </div>
-                <div className="col-span-1">
-                  <label className="text-[11px] font-bold text-zinc-500 uppercase">Lãi suất sàn cơ sở (% / năm)</label>
-                  <input type="number" step="0.01" required className="mt-1 h-9 w-full rounded-xl border border-black/10 px-3 text-xs outline-none focus:border-orange-600 font-mono font-bold text-orange-600" value={productForm.baseInterestRate} onChange={(e) => setProductForm({ ...productForm, baseInterestRate: e.target.value })} placeholder="Ví dụ: 8.5" />
-                </div>
-
-                <div className="col-span-1">
-                  <label className="text-[11px] font-bold text-zinc-500 uppercase">Hạn mức tối thiểu (VND)</label>
-                  <input type="number" required className="mt-1 h-9 w-full rounded-xl border border-black/10 px-3 text-xs outline-none focus:border-orange-600 font-mono" value={productForm.minAmount} onChange={(e) => setProductForm({ ...productForm, minAmount: e.target.value })} placeholder="Ví dụ: 5000000" />
-                </div>
-                <div className="col-span-1">
-                  <label className="text-[11px] font-bold text-zinc-500 uppercase">Hạn mức tối đa (VND)</label>
-                  <input type="number" required className="mt-1 h-9 w-full rounded-xl border border-black/10 px-3 text-xs outline-none focus:border-orange-600 font-mono" value={productForm.maxAmount} onChange={(e) => setProductForm({ ...productForm, maxAmount: e.target.value })} placeholder="Ví dụ: 500000000" />
-                </div>
-
-                <div className="col-span-1">
-                  <label className="text-[11px] font-bold text-zinc-500 uppercase">Kỳ hạn tối thiểu (Tháng)</label>
-                  <input type="number" required className="mt-1 h-9 w-full rounded-xl border border-black/10 px-3 text-xs outline-none focus:border-orange-600 font-mono" value={productForm.minTermMonths} onChange={(e) => setProductForm({ ...productForm, minTermMonths: e.target.value })} placeholder="6" />
-                </div>
-                <div className="col-span-1">
-                  <label className="text-[11px] font-bold text-zinc-500 uppercase">Kỳ hạn tối đa (Tháng)</label>
-                  <input type="number" required className="mt-1 h-9 w-full rounded-xl border border-black/10 px-3 text-xs outline-none focus:border-orange-600 font-mono" value={productForm.maxTermMonths} onChange={(e) => setProductForm({ ...productForm, maxTermMonths: e.target.value })} placeholder="36" />
-                </div>
-
-                <div className="col-span-2 flex justify-end gap-2 border-t border-zinc-100 pt-3 mt-2">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="h-9 rounded-xl border border-black/10 px-4 text-xs font-bold text-zinc-600 transition hover:bg-zinc-50">Hủy cấu hình</button>
-                  <button type="submit" className="h-9 rounded-xl bg-orange-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-orange-700">Lưu sản phẩm gốc</button>
-                </div>
-              </form>
-            </div>
-=======
-          <div className="relative w-full md:w-56">
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm text-gray-700"
-              type="button"
-            >
-              <span>{statusOptions.find((opt) => opt.value === statusFilter)?.label}</span>
-              <ChevronDown size={16} className={`text-gray-400 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
-            </button>
-            {isDropdownOpen && (
-              <div className="absolute right-0 top-full z-50 mt-1 w-full overflow-hidden rounded-lg border border-gray-100 bg-white py-1 shadow-xl">
-                {statusOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => { setStatusFilter(option.value); setIsDropdownOpen(false); }}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            )}
->>>>>>> be053e22f2b4eb743f01d18529abcbe7afa7fdfa
-          </div>
-        </div>
-
-        {error && <div className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-
-        {/* BẢNG HIỂN THỊ CÁC GÓI SẢN PHẨM VAY */}
-        <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50 text-xs font-semibold uppercase text-gray-500">
-                  <th className="px-4 py-3.5">Mã gói</th>
-                  <th className="px-4 py-3.5">Tên sản phẩm</th>
-                  <th className="px-4 py-3.5">Phân loại</th>
-                  <th className="px-4 py-3.5 text-right">Hạn mức tối thiểu</th>
-                  <th className="px-4 py-3.5 text-right">Hạn mức tối đa</th>
-                  <th className="px-4 py-3.5 text-center">Kỳ hạn (Tháng)</th>
-                  <th className="px-4 py-3.5 text-right">Lãi suất cơ sở</th>
-                  <th className="px-4 py-3.5 text-center">Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-gray-700">
-                {loading ? (
-                  <tr><td colSpan={8} className="py-8 text-center text-gray-400">Đang tải danh sách sản phẩm tín dụng...</td></tr>
-                ) : filteredProducts.length === 0 ? (
-                  <tr><td colSpan={8} className="py-8 text-center text-gray-400">Không tìm thấy sản phẩm vay phù hợp tiêu chí lọc</td></tr>
-                ) : (
-                  filteredProducts.map((row) => (
-                    <tr key={row.id} className="transition-colors hover:bg-gray-50/50">
-                      <td className="px-4 py-4 font-bold text-blue-600 uppercase">{row.code}</td>
-                      <td className="px-4 py-4 font-semibold text-gray-900">{row.name}</td>
-                      <td className="px-4 py-4">
-                        <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 font-medium">
-                          {row.loanType}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-right font-mono text-xs text-gray-600">{formatVND(row.minAmount)}</td>
-                      <td className="px-4 py-4 text-right font-mono text-xs font-medium text-gray-900">{formatVND(row.maxAmount)}</td>
-                      <td className="px-4 py-4 text-center text-xs font-medium">{row.minTermMonths} - {row.maxTermMonths} m</td>
-                      <td className="px-4 py-4 text-right font-mono font-bold text-amber-600">{row.baseInterestRate}%/năm</td>
-                      <td className="px-4 py-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(row.id, row.status)}
-                          className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${row.status.toLowerCase() === "active"
-                              ? "border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
-                              : "border-gray-200 bg-gray-100 text-gray-500 hover:bg-gray-200"
-                            }`}
-                        >
-                          {row.status.toLowerCase() === "active" ? <CheckCircle2 size={12} /> : <HelpCircle size={12} />}
-                          {row.status.toLowerCase() === "active" ? "Hoạt động" : "Tạm ngưng"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-      </div>
-    </AdminShell>
-  );
+  return <AdminShell title="Goi san pham vay" subtitle="Phan biet ro san pham vay tin chap va the chap">
+    <div className="space-y-6 font-sans text-gray-800">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><h2 className="text-base font-bold text-gray-900">Danh sach san pham vay</h2><button onClick={() => setShowCreateForm(!showCreateForm)} className="flex items-center gap-1.5 rounded-xl bg-orange-600 px-4 py-2 text-xs font-bold text-white hover:bg-orange-700"><PlusCircle size={14} /> {showCreateForm ? "Dong" : "Them goi vay moi"}</button></div>
+      {showCreateForm && <form onSubmit={handleCreateLoanProduct} className="grid grid-cols-1 gap-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm sm:grid-cols-2 md:grid-cols-4">
+        <input required placeholder="Ma goi" value={form.code} onChange={e=>setForm({...form,code:e.target.value})} className="h-9 rounded-lg border px-3 text-xs" />
+        <input required placeholder="Ten goi" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="h-9 rounded-lg border px-3 text-xs" />
+        <select value={form.loanType} onChange={e=>setForm({...form,loanType:e.target.value})} className="h-9 rounded-lg border px-2 text-xs"><option value="UNSECURED">Tin chap</option><option value="SECURED">The chap</option></select>
+        <input type="number" step="0.01" required placeholder="Lai suat %/nam" value={form.baseInterestRate} onChange={e=>setForm({...form,baseInterestRate:e.target.value})} className="h-9 rounded-lg border px-3 text-xs" />
+        <input type="number" required placeholder="Han muc toi thieu" value={form.minAmount} onChange={e=>setForm({...form,minAmount:e.target.value})} className="h-9 rounded-lg border px-3 text-xs" />
+        <input type="number" required placeholder="Han muc toi da" value={form.maxAmount} onChange={e=>setForm({...form,maxAmount:e.target.value})} className="h-9 rounded-lg border px-3 text-xs" />
+        <input type="number" required placeholder="Ky han min" value={form.minTermMonths} onChange={e=>setForm({...form,minTermMonths:e.target.value})} className="h-9 rounded-lg border px-3 text-xs" />
+        <div className="flex gap-2"><input type="number" required placeholder="Ky han max" value={form.maxTermMonths} onChange={e=>setForm({...form,maxTermMonths:e.target.value})} className="h-9 w-full rounded-lg border px-3 text-xs" /><button disabled={formSubmitting} className="h-9 rounded-lg bg-gray-900 px-4 text-xs font-bold text-white">Luu</button></div>
+      </form>}
+      <div className="flex flex-col items-end justify-between gap-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm md:flex-row md:items-center"><div className="relative w-full md:w-2/3"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Tim theo ten, ma, loai vay..." className="w-full rounded-lg border border-gray-200 bg-gray-50/50 py-2 pl-9 pr-4 text-sm outline-none focus:border-orange-500"/></div><div className="relative w-full md:w-56"><button onClick={()=>setIsDropdownOpen(!isDropdownOpen)} className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm text-gray-700"><span>{statusOptions.find(o=>o.value===statusFilter)?.label}</span><ChevronDown size={16}/></button>{isDropdownOpen && <div className="absolute right-0 top-full z-50 mt-1 w-full rounded-lg border bg-white py-1 shadow-xl">{statusOptions.map(o=><button key={o.value} onClick={()=>{setStatusFilter(o.value);setIsDropdownOpen(false)}} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50">{o.label}</button>)}</div>}</div></div>
+      {error && <div className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm"><div className="overflow-x-auto"><table className="w-full border-collapse text-left text-sm"><thead><tr className="border-b bg-gray-50 text-xs font-semibold uppercase text-gray-500"><th className="px-4 py-3.5">Ma goi</th><th className="px-4 py-3.5">Ten san pham</th><th className="px-4 py-3.5">Phan loai</th><th className="px-4 py-3.5 text-right">Han muc</th><th className="px-4 py-3.5 text-center">Ky han</th><th className="px-4 py-3.5 text-right">Lai suat</th><th className="px-4 py-3.5 text-center">Trang thai</th></tr></thead><tbody className="divide-y divide-gray-100 text-gray-700">{loading ? <tr><td colSpan={7} className="py-8 text-center text-gray-400">Dang tai...</td></tr> : filteredProducts.length===0 ? <tr><td colSpan={7} className="py-8 text-center text-gray-400">Khong co san pham vay</td></tr> : filteredProducts.map(row=><tr key={row.id} className="hover:bg-gray-50/50"><td className="px-4 py-4 font-bold text-blue-600 uppercase">{row.code}</td><td className="px-4 py-4 font-semibold text-gray-900">{row.name}</td><td className="px-4 py-4"><span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${loanTypeTone(row.loanType)}`}>{formatLoanType(row.loanType)}</span></td><td className="px-4 py-4 text-right font-mono text-xs">{formatVND(row.minAmount)} - {formatVND(row.maxAmount)}</td><td className="px-4 py-4 text-center text-xs font-medium">{row.minTermMonths} - {row.maxTermMonths} thang</td><td className="px-4 py-4 text-right font-mono font-bold text-amber-600">{row.baseInterestRate}%/nam</td><td className="px-4 py-4 text-center"><button onClick={()=>handleToggleStatus(row.id,row.status)} className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-medium ${row.status.toLowerCase()==="active"?"border-emerald-100 bg-emerald-50 text-emerald-600":"border-gray-200 bg-gray-100 text-gray-500"}`}>{row.status.toLowerCase()==="active"?<CheckCircle2 size={12}/>:<HelpCircle size={12}/>} {row.status.toLowerCase()==="active"?"Hoat dong":"Tam ngung"}</button></td></tr>)}</tbody></table></div></div>
+    </div>
+  </AdminShell>;
 }

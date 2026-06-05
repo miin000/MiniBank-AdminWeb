@@ -138,7 +138,7 @@ export default function SavingAccountsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -178,7 +178,7 @@ export default function SavingAccountsPage() {
         throw new Error(text || "Load failed");
       }
       const data = (await res.json()) as SavingListItem[];
-      setItems(data);
+      setItems(data.filter((item) => item.status?.toLowerCase() === "active"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Load failed");
     } finally {
@@ -220,6 +220,7 @@ export default function SavingAccountsPage() {
     if (!query.trim()) return items;
     const q = query.trim().toLowerCase();
     return items.filter((item) => {
+      if (item.status?.toLowerCase() !== "active") return false;
       return [
         item.code,
         item.userFullName,

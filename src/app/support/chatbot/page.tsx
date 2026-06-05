@@ -88,17 +88,106 @@ export default function ChatbotManagementPage() {
   );
 
   const faqTree = useMemo(() => {
+    const keyword = faqSearch.trim().toLowerCase();
+    const source = selectedCategoryId
+      ? faqs.filter((item) => item.categoryId === selectedCategoryId)
+      : faqs;
+
+    const nodes = source.map((item) => ({ ...item, children: [] as FaqNode[] }));
+    const nodeById = new Map(nodes.map((node) => [node.id, node]));
     const byParent = new Map<number, FaqNode[]>();
-    const nodes = faqs.map((item) => ({ ...item, children: [] as FaqNode[] }));
+
     for (const node of nodes) {
       const parentId = node.parentFaqId ?? 0;
-      byParent.set(parentId, [...(byParent.get(parentId) ?? []), node]);
+      const effectiveParentId = parentId > 0 && nodeById.has(parentId) ? parentId : 0;
+      byParent.set(effectiveParentId, [...(byParent.get(effectiveParentId) ?? []), node]);
     }
+
     for (const node of nodes) {
       node.children = byParent.get(node.id) ?? [];
     }
-    return byParent.get(0) ?? [];
-  }, [faqs]);
+
+    const roots = byParent.get(0) ?? [];
+    if (!keyword) return roots;
+
+    const isMatched = (node: FaqNode) =>
+      node.question.toLowerCase().includes(keyword) ||
+      node.answer.toLowerCase().includes(keyword) ||
+      node.keywords.some((item) => item.toLowerCase().includes(keyword));
+
+    const filterNode = (node: FaqNode): FaqNode | null => {
+      const matched = isMatched(node);
+      const filteredChildren = node.children
+        .map(filterNode)
+        .filter((item): item is FaqNode => Boolean(item));
+
+      // Nếu node cha khớp keyword, giữ nguyên toàn bộ nhánh con để không làm vỡ ngữ cảnh cây.
+      if (matched) return { ...node, children: node.children };
+
+      // Nếu node con khớp keyword, giữ lại node cha làm đường dẫn ngữ cảnh.
+      if (filteredChildren.length > 0) return { ...node, children: filteredChildren };
+
+      return null;
+    };
+
+    return roots.map(filterNode).filter((item): item is FaqNode => Boolean(item));
+  }, [faqs, faqSearch, selectedCategoryId]);
+
+  const faqParentOptions = useMemo(() => {
+    const categoryId = Number(faqForm.categoryId || selectedCategoryId || 0);
+    const sameCategoryFaqs = faqs.filter((item) => item.categoryId === categoryId);
+    const childrenByParent = new Map<number, AdminFaqItem[]>();
+
+    for (const item of sameCategoryFaqs) {
+      const parentId = item.parentFaqId ?? 0;
+      childrenByParent.set(parentId, [...(childrenByParent.get(parentId) ?? []), item]);
+    }
+
+    const excludedIds = new Set<number>();
+    if (faqForm.id > 0) {
+      const stack = [faqForm.id];
+      while (stack.length > 0) {
+        const id = stack.pop()!;
+        excludedIds.add(id);
+        for (const child of childrenByParent.get(id) ?? []) {
+          stack.push(child.id);
+        }
+      }
+    }
+
+    const result: { item: AdminFaqItem; level: number }[] = [];
+    const visited = new Set<number>();
+
+    const walk = (parentId: number, level: number) => {
+      const children = [...(childrenByParent.get(parentId) ?? [])].sort((a, b) =>
+        a.question.localeCompare(b.question, "vi")
+      );
+
+      for (const item of children) {
+        if (visited.has(item.id) || excludedIds.has(item.id)) continue;
+        visited.add(item.id);
+        result.push({ item, level });
+        walk(item.id, level + 1);
+      }
+    };
+
+    walk(0, 0);
+
+    // Fallback cho dữ liệu cũ bị mồ côi: parent không còn trong danh sách hiện tại.
+    for (const item of sameCategoryFaqs) {
+      if (visited.has(item.id) || excludedIds.has(item.id)) continue;
+      visited.add(item.id);
+      result.push({ item, level: 0 });
+      walk(item.id, 1);
+    }
+
+    return result;
+  }, [faqs, faqForm.categoryId, faqForm.id, selectedCategoryId]);
+
+  const selectedParentFaq = useMemo(
+    () => faqs.find((item) => item.id === faqForm.parentFaqId) ?? null,
+    [faqs, faqForm.parentFaqId]
+  );
 
   async function loadCategories() {
     const list = await listFaqCategories();
@@ -109,7 +198,13 @@ export default function ChatbotManagementPage() {
   }
 
   async function loadFaqs() {
-    const list = await listFaqItems(selectedCategoryId ?? undefined, faqSearch || undefined);
+    if (!selectedCategoryId) {
+      setFaqs([]);
+      return;
+    }
+
+    // Luôn load toàn bộ FAQ của danh mục; search chỉ filter ở client để không làm vỡ cây.
+    const list = await listFaqItems(selectedCategoryId);
     setFaqs(list);
   }
 
@@ -215,7 +310,7 @@ export default function ChatbotManagementPage() {
     return () => {
       alive = false;
     };
-  }, [selectedCategoryId, faqSearch]);
+  }, [selectedCategoryId]);
 
   useEffect(() => {
     let alive = true;
@@ -280,6 +375,13 @@ export default function ChatbotManagementPage() {
       if (!faqForm.question.trim() || !faqForm.answer.trim()) {
         throw new Error("Câu hỏi và câu trả lời là bắt buộc");
       }
+      if (faqForm.parentFaqId > 0) {
+        const parentFaq = faqs.find((item) => item.id === faqForm.parentFaqId);
+        if (!parentFaq) throw new Error("FAQ cha không tồn tại trong danh mục đang chọn");
+        if (parentFaq.categoryId !== categoryId) throw new Error("FAQ cha phải cùng danh mục với FAQ hiện tại");
+        if (faqForm.id > 0 && parentFaq.id === faqForm.id) throw new Error("Không thể chọn chính FAQ này làm cha");
+      }
+
       const payload = {
         categoryId,
         parentFaqId: faqForm.parentFaqId > 0 ? faqForm.parentFaqId : null,
@@ -577,6 +679,25 @@ export default function ChatbotManagementPage() {
                     </option>
                   ))}
                 </select>
+                <select
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  value={faqForm.parentFaqId}
+                  onChange={(e) => setFaqForm((prev) => ({ ...prev, parentFaqId: Number(e.target.value) }))}
+                >
+                  <option value={0}>— Câu hỏi gốc (không có cha) —</option>
+                  {faqParentOptions.map(({ item, level }) => (
+                    <option key={item.id} value={item.id}>
+                      {`${"— ".repeat(level)}${item.question.length > 70 ? `${item.question.slice(0, 70)}…` : item.question}`}
+                    </option>
+                  ))}
+                </select>
+
+                {selectedParentFaq ? (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                    Đang chọn FAQ cha: <span className="font-semibold">{selectedParentFaq.question}</span>
+                  </div>
+                ) : null}
+
                 <input
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
                   placeholder="Câu hỏi"
@@ -625,11 +746,12 @@ export default function ChatbotManagementPage() {
                   <button
                     type="button"
                     onClick={() => {
+                      const parentId = selectedFaq?.id ?? 0;
                       setSelectedFaq(null);
                       setFaqForm({
                         id: 0,
                         categoryId: selectedCategoryId ?? 0,
-                        parentFaqId: selectedFaq?.id ?? 0,
+                        parentFaqId: parentId,
                         question: "",
                         answer: "",
                         active: true,
@@ -638,7 +760,7 @@ export default function ChatbotManagementPage() {
                     }}
                     className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700"
                   >
-                    Mới
+                    {selectedFaq ? `+ Nhánh con của "${selectedFaq.question.slice(0, 20)}…"` : "Mới (gốc)"}
                   </button>
                 </div>
               </div>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { backendWsUrl, MiniStompClient } from "../../lib/stomp-client";
 
 type AdminUser = {
   id: number;
@@ -24,6 +25,14 @@ type NavItem = {
     requiredRoles?: string[];
     requiredPermissions?: string[];
   }[];
+};
+
+type AdminNotification = {
+  id?: number;
+  title?: string;
+  content?: string;
+  type?: string;
+  createdAt?: string;
 };
 
 const ADMIN_ONLY = ["ADMIN", "SUPER_ADMIN"];
@@ -297,6 +306,8 @@ export default function AdminShell({
 }: AdminShellProps) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [user, setUser] = useState<AdminUser | null>(null);
 
   useEffect(() => {
@@ -308,6 +319,19 @@ export default function AdminShell({
         setUser(null);
       }
     }
+  }, []);
+
+  useEffect(() => {
+    const client = new MiniStompClient(backendWsUrl());
+    client.connect();
+    const unsub = client.subscribe("/topic/admin/notifications", (body) => {
+      const item = typeof body === "object" && body ? (body as AdminNotification) : { title: "Thông báo", content: String(body ?? "") };
+      setNotifications((prev) => [item, ...prev].slice(0, 20));
+    });
+    return () => {
+      unsub();
+      client.disconnect();
+    };
   }, []);
 
   const handleLogout = () => {
@@ -403,9 +427,33 @@ export default function AdminShell({
           </div>
           <div className="flex items-center gap-3">
             {actions}
-            <button className="flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-sm">
-              🔔
-            </button>
+            <div className="relative">
+              <button
+                className="relative flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-sm"
+                onClick={() => setNotificationOpen((prev) => !prev)}
+                type="button"
+              >
+                🔔
+                {notifications.length > 0 ? (
+                  <span className="absolute -right-1 -top-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                    {notifications.length}
+                  </span>
+                ) : null}
+              </button>
+              {notificationOpen ? (
+                <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-xl border border-black/10 bg-white text-sm shadow-lg">
+                  <div className="border-b border-black/5 px-4 py-3 text-xs font-bold uppercase text-zinc-500">Thông báo realtime</div>
+                  {notifications.length === 0 ? (
+                    <div className="px-4 py-5 text-xs text-zinc-400">Chưa có thông báo mới trong phiên này.</div>
+                  ) : notifications.map((item, index) => (
+                    <div key={`${item.id ?? "n"}-${index}`} className="border-b border-black/5 px-4 py-3 last:border-b-0">
+                      <div className="text-xs font-bold text-zinc-900">{item.title ?? item.type ?? "Thông báo"}</div>
+                      <div className="mt-1 line-clamp-2 text-xs text-zinc-500">{item.content ?? "Có cập nhật mới từ hệ thống"}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
             <div className="relative">
               <button
                 className="flex items-center gap-3 rounded-full border border-black/10 bg-white px-3 py-1.5"

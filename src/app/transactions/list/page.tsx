@@ -30,6 +30,7 @@ export default function AdminTransactionsListPage() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
+    const [refundingId, setRefundingId] = useState<number | null>(null);
 
     const loadData = async () => {
         try {
@@ -69,6 +70,24 @@ export default function AdminTransactionsListPage() {
 
     const handleSearchKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Enter") loadData();
+    };
+
+    const handleRefund = async (tx: TransactionItem) => {
+        if (!confirm(`Hoàn lại giao dịch ${tx.transactionCode}?`)) return;
+        try {
+            setRefundingId(tx.id);
+            const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/transactions/${tx.id}/refund`, {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            });
+            if (!res.ok) throw new Error(await res.text());
+            await loadData();
+        } catch (err) {
+            alert(`Không thể hoàn giao dịch: ${err instanceof Error ? err.message : "Lỗi kết nối"}`);
+        } finally {
+            setRefundingId(null);
+        }
     };
 
     // Hàm xử lý: Tự động gom nhóm số tiền các giao dịch thành công (completed) từ DB theo mốc giờ
@@ -185,13 +204,14 @@ export default function AdminTransactionsListPage() {
                             <th className="p-4 text-center">Loại</th>
                             <th className="p-4 font-mono">Thời gian</th>
                             <th className="p-4 text-center">Trạng thái</th>
+                            <th className="p-4 text-right">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-100 font-semibold text-zinc-700">
                         {loading ? (
-                            <tr><td colSpan={7} className="p-8 text-center text-zinc-400 animate-pulse">Đang đồng bộ dữ liệu giao dịch từ DB...</td></tr>
+                            <tr><td colSpan={8} className="p-8 text-center text-zinc-400 animate-pulse">Đang đồng bộ dữ liệu giao dịch từ DB...</td></tr>
                         ) : transactions.length === 0 ? (
-                            <tr><td colSpan={7} className="p-8 text-center text-zinc-400">Không tìm thấy bản ghi giao dịch nào.</td></tr>
+                            <tr><td colSpan={8} className="p-8 text-center text-zinc-400">Không tìm thấy bản ghi giao dịch nào.</td></tr>
                         ) : (
                             transactions.map((tx) => (
                                 <tr key={tx.id} className="hover:bg-zinc-50/50">
@@ -215,6 +235,15 @@ export default function AdminTransactionsListPage() {
                                             }`}>
                                             {tx.status}
                                         </span>
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        <button
+                                            disabled={tx.status.toLowerCase() !== "completed" || tx.transactionType.toLowerCase() === "refund" || refundingId === tx.id}
+                                            onClick={() => handleRefund(tx)}
+                                            className="rounded-lg border border-black/5 bg-white px-3 py-1.5 text-[11px] font-bold text-blue-600 shadow-sm hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            {refundingId === tx.id ? "Đang hoàn..." : "Hoàn lại"}
+                                        </button>
                                     </td>
                                 </tr>
                             ))

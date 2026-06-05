@@ -385,7 +385,8 @@ export default function ContractsPage() {
 
       let updated: TemplateDetail;
       if (detail && !isCreating) {
-        updated = await updateContractTemplate(detail.id, payload);
+        await updateContractTemplate(detail.id, payload);
+        updated = await getContractTemplate(detail.id);
       } else {
         updated = await createContractTemplate(payload);
         setSelectedId(updated.id);
