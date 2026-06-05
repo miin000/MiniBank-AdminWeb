@@ -6,9 +6,13 @@ import AdminShell from "../../components/admin-shell";
 
 import {
     fetchServiceRequests,
+    fetchServiceRequestDetail,
     approveServiceRequest,
     rejectServiceRequest,
-    ServiceRequestSummary,
+    ServiceRequestDetail,
+    AccountLimit,
+    fetchAccounts,
+    updateAccountLimits,
 } from "../../../lib/api/service-requests";
 
 function formatMoney(amount: number | undefined | null) {
@@ -30,9 +34,25 @@ function formatDate(isoStr: string) {
 }
 
 export default function LimitsPage() {
-    const [requests, setRequests] = useState<ServiceRequestSummary[]>([]);
+    const [requests, setRequests] =
+        useState<ServiceRequestDetail[]>([]);
+    const [accounts, setAccounts] =
+        useState<AccountLimit[]>([]);
+    const [selectedAccount, setSelectedAccount] =
+        useState<AccountLimit | null>(null);
+
+    const [showEditModal, setShowEditModal] =
+        useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [editTransferLimit, setEditTransferLimit] =
+        useState("");
+
+    const [editReceiveLimit, setEditReceiveLimit] =
+        useState("");
+
+    const [editReason, setEditReason] =
+        useState("");
 
     const [activeTab, setActiveTab] = useState<
         "pending" | "dashboard"
@@ -50,13 +70,22 @@ export default function LimitsPage() {
         setError("");
 
         try {
-            const data = await fetchServiceRequests(
+            const summaries = await fetchServiceRequests(
                 undefined,
                 "limit_change"
             );
-            console.log("SERVICE REQUESTS:", data);
 
-            setRequests(data);
+            const details = await Promise.all(
+                summaries.map((item) =>
+                    fetchServiceRequestDetail(item.id)
+                )
+            );
+
+            setRequests(details);
+            const accountData =
+                await fetchAccounts();
+
+            setAccounts(accountData);
         } catch (e: unknown) {
             setError(
                 e instanceof Error
@@ -234,42 +263,18 @@ export default function LimitsPage() {
 
                                     <tbody>
                                         {pendingRequests.map((req) => {
-                                            let currentLimit: number | null =
-                                                null;
+                                            const currentLimit =
+                                                req.limitChange
+                                                    ?.currentDailyTransferLimit ?? null;
 
-                                            let requestedLimit: number | null =
-                                                null;
+                                            const requestedLimit =
+                                                req.limitChange
+                                                    ?.requestedDailyTransferLimit ?? null;
 
-                                            let reason =
-                                                req.title || "—";
-
-                                            try {
-                                                const payload =
-                                                    req as unknown as {
-                                                        payloadJson?: string;
-                                                    };
-
-                                                if (
-                                                    payload.payloadJson
-                                                ) {
-                                                    const p = JSON.parse(
-                                                        payload.payloadJson
-                                                    );
-
-                                                    currentLimit =
-                                                        p.currentDailyTransferLimit ??
-                                                        null;
-
-                                                    requestedLimit =
-                                                        p.requestedDailyTransferLimit ??
-                                                        null;
-
-                                                    reason =
-                                                        p.reason ||
-                                                        reason;
-                                                }
-                                            } catch { }
-
+                                            const reason =
+                                                req.limitChange?.reason ??
+                                                req.title ??
+                                                "—";
                                             const isLoading =
                                                 actionLoading ===
                                                 req.id;
@@ -383,53 +388,201 @@ export default function LimitsPage() {
 
                     {activeTab === "dashboard" && (
                         <div className="p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="bg-blue-50 rounded-xl p-5 border border-blue-100">
-                                    <p className="text-xs text-blue-500 font-medium mb-2">
-                                        Tổng yêu cầu hạn mức
-                                    </p>
+                            <div className="overflow-x-auto rounded-xl border border-gray-200">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="bg-gray-50 border-b border-gray-200">
+                                            <th className="px-6 py-4 text-left">
+                                                STK
+                                            </th>
 
-                                    <p className="text-3xl font-bold text-blue-700">
-                                        {requests.length}
-                                    </p>
-                                </div>
+                                            <th className="px-6 py-4 text-left">
+                                                Họ tên
+                                            </th>
 
-                                <div className="bg-yellow-50 rounded-xl p-5 border border-yellow-100">
-                                    <p className="text-xs text-yellow-600 font-medium mb-2">
-                                        Chờ duyệt
-                                    </p>
+                                            <th className="px-6 py-4 text-left">
+                                                HM chuyển/Ngày
+                                            </th>
 
-                                    <p className="text-3xl font-bold text-yellow-600">
-                                        {
-                                            requests.filter(
-                                                (r) =>
-                                                    r.status?.toLowerCase() ===
-                                                    "submitted"
-                                            ).length
-                                        }
-                                    </p>
-                                </div>
+                                            <th className="px-6 py-4 text-left">
+                                                HM nhận/Ngày
+                                            </th>
 
-                                <div className="bg-green-50 rounded-xl p-5 border border-green-100">
-                                    <p className="text-xs text-green-600 font-medium mb-2">
-                                        Đã duyệt
-                                    </p>
+                                            <th className="px-6 py-4 text-left">
+                                                Hành động
+                                            </th>
+                                        </tr>
+                                    </thead>
 
-                                    <p className="text-3xl font-bold text-green-600">
-                                        {
-                                            requests.filter(
-                                                (r) =>
-                                                    r.status?.toLowerCase() ===
-                                                    "approved"
-                                            ).length
-                                        }
-                                    </p>
-                                </div>
+                                    <tbody>
+                                        {accounts.map((acc) => (
+                                            <tr
+                                                key={acc.id}
+                                                className="border-b border-gray-100"
+                                            >
+                                                <td className="px-6 py-4">
+                                                    {acc.accountNumber}
+                                                </td>
+
+                                                <td className="px-6 py-4">
+                                                    {acc.ownerName}
+                                                </td>
+
+                                                <td className="px-6 py-4">
+                                                    {formatMoney(
+                                                        acc.dailyTransferLimit
+                                                    )}
+                                                </td>
+
+                                                <td className="px-6 py-4">
+                                                    {formatMoney(
+                                                        acc.dailyReceiveLimit
+                                                    )}
+                                                </td>
+
+                                                <td className="px-6 py-4">
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedAccount(acc);
+
+                                                            setEditTransferLimit(
+                                                                String(acc.dailyTransferLimit ?? 0)
+                                                            );
+
+                                                            setEditReceiveLimit(
+                                                                String(acc.dailyReceiveLimit ?? 0)
+                                                            );
+
+                                                            setEditReason("");
+
+                                                            setShowEditModal(true);
+                                                        }}
+                                                        className="text-blue-600 hover:text-blue-800 font-medium"
+                                                    >
+                                                        Chỉnh sửa
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     )}
                 </div>
             </div>
+            {showEditModal && selectedAccount && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-2xl w-full max-w-2xl p-8 shadow-xl">
+                        <h2 className="text-3xl font-bold mb-6">
+                            Cập nhật hạn mức
+                        </h2>
+
+                        <div className="bg-gray-50 rounded-xl p-4 mb-6">
+                            <div className="font-semibold text-lg">
+                                {selectedAccount.ownerName}
+                            </div>
+
+                            <div className="text-gray-500">
+                                {selectedAccount.accountNumber}
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block mb-2 font-medium">
+                                    Hạn mức chuyển tiền / Ngày
+                                </label>
+
+                                <input
+                                    type="number"
+                                    value={editTransferLimit}
+                                    onChange={(e) =>
+                                        setEditTransferLimit(
+                                            e.target.value
+                                        )
+                                    }
+                                    className="w-full border rounded-xl p-3"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block mb-2 font-medium">
+                                    Hạn mức nhận tiền / Ngày
+                                </label>
+
+                                <input
+                                    type="number"
+                                    value={editReceiveLimit}
+                                    onChange={(e) =>
+                                        setEditReceiveLimit(
+                                            e.target.value
+                                        )
+                                    }
+                                    className="w-full border rounded-xl p-3"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block mb-2 font-medium">
+                                    Lý do thay đổi
+                                </label>
+
+                                <textarea
+                                    value={editReason}
+                                    onChange={(e) =>
+                                        setEditReason(
+                                            e.target.value
+                                        )
+                                    }
+                                    rows={4}
+                                    className="w-full border rounded-xl p-3"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-8">
+                            <button
+                                onClick={() =>
+                                    setShowEditModal(false)
+                                }
+                                className="px-6 py-3 border rounded-xl"
+                            >
+                                Hủy
+                            </button>
+
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await updateAccountLimits(
+                                            selectedAccount.id,
+                                            Number(editTransferLimit),
+                                            Number(editReceiveLimit)
+                                        );
+
+                                        await load();
+
+                                        setShowEditModal(false);
+
+                                        showToast(
+                                            "Cập nhật hạn mức thành công!",
+                                            "success"
+                                        );
+                                    } catch {
+                                        showToast(
+                                            "Cập nhật hạn mức thất bại!",
+                                            "error"
+                                        );
+                                    }
+                                }}
+                                className="px-6 py-3 bg-blue-600 text-white rounded-xl"
+                            >
+                                Cập nhật hạn mức
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </AdminShell>
     );
 }

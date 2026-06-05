@@ -113,3 +113,59 @@ export async function rejectServiceRequest(
     );
     if (!res.ok) throw new Error("Không thể từ chối yêu cầu");
 }
+export interface AccountLimit {
+    id: number;
+    accountNumber: string;
+    accountName: string;
+    dailyTransferLimit: number;
+    dailyReceiveLimit: number;
+    ownerName: string;
+    ownerPhone: string;
+}
+
+export async function fetchAccounts(): Promise<AccountLimit[]> {
+    const res = await fetch(
+        `${BASE_URL}/api/admin/accounts`,
+        {
+            headers: {
+                "Content-Type": "application/json",
+                ...getAuthHeader(),
+            },
+        }
+    );
+
+    if (!res.ok) {
+        throw new Error(
+            "Không thể tải danh sách tài khoản"
+        );
+    }
+
+    return res.json();
+
+}
+export async function updateAccountLimits(
+    id: number,
+    dailyTransferLimit: number,
+    dailyReceiveLimit: number
+): Promise<void> {
+    const res = await fetch(
+        `${BASE_URL}/api/admin/accounts/${id}/limits`,
+        {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                ...getAuthHeader(),
+            },
+            body: JSON.stringify({
+                dailyTransferLimit,
+                dailyReceiveLimit,
+            }),
+        }
+    );
+
+    if (!res.ok) {
+        throw new Error(
+            "Không thể cập nhật hạn mức"
+        );
+    }
+}
