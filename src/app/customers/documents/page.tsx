@@ -15,9 +15,9 @@ type DocumentSummary = {
     ownerType: string;       // Khớp với cột owner_type trong DB (CUSTOMER, LOAN,...)
     ownerId: number;         // Khớp với cột owner_id
     documentType: string;    // Khớp với cột document_type (IDENTITY_CARD, INCOME_PROOF,...)
-    fileName: string;        // Khớp với cột file_name
+    fileName: string | null; // Khớp với cột file_name
     fileUrl: string;         // Đường dẫn URL lưu trong DB để xem/tải file
-    mimeType: string;        // Định dạng file (image/png, application/pdf)
+    mimeType: string | null; // Định dạng file (image/png, application/pdf)
     verifiedStatus: "pending" | "approved" | "rejected" | "PENDING" | "APPROVED" | "REJECTED";
     uploadedByType: string;
     uploadedById: number;
@@ -25,6 +25,20 @@ type DocumentSummary = {
     verifiedById: number | null;
     verifiedAt: string | null;
     note: string | null;     // Cột ghi chú hoặc lý do từ chối
+};
+
+const resolveFileUrl = (fileUrl?: string | null) => {
+    if (!fileUrl) return "";
+    if (/^(https?:|blob:|data:)/i.test(fileUrl)) return fileUrl;
+    return `${API_BASE}${fileUrl.startsWith("/") ? "" : "/"}${fileUrl}`;
+};
+
+const safeText = (value?: string | number | null) => String(value ?? "");
+
+const formatUploadedAt = (value?: string | null) => {
+    if (!value) return "--";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "--" : date.toLocaleString("vi-VN");
 };
 
 const statusOptions = [
@@ -35,7 +49,10 @@ const statusOptions = [
 ];
 
 export default function AdminCustomerDocumentsPage() {
-    const [token, setToken] = useState<string | null>(null);
+    const [token] = useState<string | null>(() => {
+        if (typeof window === "undefined") return null;
+        return localStorage.getItem("adminToken");
+    });
     const [documents, setDocuments] = useState<DocumentSummary[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -50,11 +67,6 @@ export default function AdminCustomerDocumentsPage() {
     const [reviewNote, setReviewNote] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    // Lấy mã Token bảo mật (JWT) để gửi lên đầu Header của API
-    useEffect(() => {
-        setToken(localStorage.getItem("adminToken"));
-    }, []);
-
     // ==========================================
     // HÀM 1: TRUY VẤN ĐỌC DỮ LIỆU TỪ DATABASE (API GET)
     // ==========================================
@@ -63,8 +75,8 @@ export default function AdminCustomerDocumentsPage() {
         setLoading(true);
         setError(null);
         try {
-            // Gọi đến API của AdminDocumentController, lấy trang đầu tiên với kích thước tối đa 100 bản ghi
-            const res = await fetch(`${API_BASE}/api/admin/documents?page=0&size=100`, {
+            // Tab này chỉ lấy các tài liệu do khách hàng upload (CCCD, ảnh minh chứng, hồ sơ...).
+            const res = await fetch(`${API_BASE}/api/admin/documents?ownerType=USER&page=0&size=100`, {
                 method: "GET",
                 headers: {
                     "Content-Type": "application/json",
@@ -73,7 +85,8 @@ export default function AdminCustomerDocumentsPage() {
             });
 
             if (!res.ok) {
-                throw new Error(`Lỗi máy chủ (${res.status}): Không thể kết nối truy vấn cơ sở dữ liệu.`);
+                const detail = await res.text();
+                throw new Error(`Lỗi máy chủ (${res.status}): ${detail || "Không thể kết nối truy vấn cơ sở dữ liệu."}`);
             }
 
             const data = await res.json();
@@ -95,6 +108,7 @@ export default function AdminCustomerDocumentsPage() {
     }, [token]);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchDocumentsFromDB();
     }, [fetchDocumentsFromDB]);
 
@@ -133,7 +147,7 @@ export default function AdminCustomerDocumentsPage() {
                 const errorText = await res.text();
                 alert(`Cơ sở dữ liệu từ chối cập nhật: ${errorText}`);
             }
-        } catch (err) {
+        } catch {
             alert("Xung đột kết nối: Không thể gửi dữ liệu lệnh ghi xuống Database.");
         } finally {
             setSubmitting(false);
@@ -145,9 +159,9 @@ export default function AdminCustomerDocumentsPage() {
         const q = searchQuery.toLowerCase().trim();
         return documents.filter((doc) => {
             const matchesSearch = !q ||
-                doc.fileName.toLowerCase().includes(q) ||
-                doc.ownerId.toString().includes(q) ||
-                doc.documentType.toLowerCase().includes(q);
+                safeText(doc.fileName).toLowerCase().includes(q) ||
+                safeText(doc.ownerId).includes(q) ||
+                safeText(doc.documentType).toLowerCase().includes(q);
             const matchesStatus = statusFilter === "ALL" || doc.verifiedStatus?.toUpperCase() === statusFilter;
             return matchesSearch && matchesStatus;
         });
@@ -249,9 +263,9 @@ export default function AdminCustomerDocumentsPage() {
                                             <td className="px-4 py-3.5 font-medium text-zinc-900">{translateDocType(doc.documentType)}</td>
                                             <td className="px-4 py-3.5 max-w-xs truncate font-mono text-zinc-600 flex items-center gap-1.5 py-4">
                                                 <FileText size={14} className="text-zinc-400 flex-shrink-0" />
-                                                <span className="truncate" title={doc.fileName}>{doc.fileName}</span>
+                                                <span className="truncate" title={doc.fileName ?? doc.fileUrl}>{doc.fileName ?? doc.fileUrl}</span>
                                             </td>
-                                            <td className="px-4 py-3.5 text-zinc-500">{new Date(doc.uploadedAt).toLocaleString("vi-VN")}</td>
+                                            <td className="px-4 py-3.5 text-zinc-500">{formatUploadedAt(doc.uploadedAt)}</td>
                                             <td className="px-4 py-3.5">
                                                 <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${doc.verifiedStatus?.toUpperCase() === "APPROVED" ? "border-emerald-100 bg-emerald-50 text-emerald-600" :
                                                     doc.verifiedStatus?.toUpperCase() === "REJECTED" ? "border-red-100 bg-red-50 text-red-600" :
@@ -289,7 +303,7 @@ export default function AdminCustomerDocumentsPage() {
                             <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-3.5 bg-zinc-50">
                                 <div>
                                     <h3 className="text-xs font-bold text-zinc-900">Thẩm định hồ sơ ID bản ghi: #{selectedDoc.id}</h3>
-                                    <p className="text-[10px] text-zinc-500 mt-0.5">Tên tệp gốc: {selectedDoc.fileName} | Phân loại: {translateDocType(selectedDoc.documentType)}</p>
+                                    <p className="text-[10px] text-zinc-500 mt-0.5">Tên tệp gốc: {selectedDoc.fileName ?? selectedDoc.fileUrl} | Phân loại: {translateDocType(selectedDoc.documentType)}</p>
                                 </div>
                                 <button type="button" onClick={() => setSelectedDoc(null)} className="text-zinc-400 hover:text-zinc-600"><X size={16} /></button>
                             </div>
@@ -299,16 +313,16 @@ export default function AdminCustomerDocumentsPage() {
 
                                 {/* Khối xem trước File (Đọc liên kết từ trường fileUrl của DB) */}
                                 <div className="flex-1 bg-zinc-100 p-4 flex items-center justify-center overflow-auto border-r border-zinc-200">
-                                    {selectedDoc.mimeType.startsWith("image/") ? (
+                                    {selectedDoc.mimeType?.startsWith("image/") ? (
                                         // eslint-disable-next-line @next/next/no-img-element
                                         <img
-                                            src={selectedDoc.fileUrl}
+                                            src={resolveFileUrl(selectedDoc.fileUrl)}
                                             alt="Tài liệu đính kèm khách hàng"
                                             className="max-w-full max-h-full object-contain rounded-lg shadow animate-fadeIn"
                                         />
                                     ) : selectedDoc.mimeType === "application/pdf" ? (
                                         <iframe
-                                            src={`${selectedDoc.fileUrl}#toolbar=0`}
+                                            src={`${resolveFileUrl(selectedDoc.fileUrl)}#toolbar=0`}
                                             className="w-full h-full rounded-lg shadow bg-white"
                                             title="PDF Preview"
                                         />
@@ -316,7 +330,7 @@ export default function AdminCustomerDocumentsPage() {
                                         <div className="text-center p-6 bg-white rounded-xl shadow border max-w-sm">
                                             <FileText size={40} className="text-zinc-400 mx-auto mb-2" />
                                             <p className="text-xs font-bold text-zinc-700">Định dạng file không hỗ trợ hiển thị nhanh</p>
-                                            <a href={selectedDoc.fileUrl} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 underline block mt-2 font-mono">Tải file gốc từ Storage</a>
+                                            <a href={resolveFileUrl(selectedDoc.fileUrl)} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 underline block mt-2 font-mono">Tải file gốc từ Storage</a>
                                         </div>
                                     )}
                                 </div>
