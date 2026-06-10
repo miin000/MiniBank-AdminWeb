@@ -30,6 +30,12 @@ export default function AdminBankAccountsPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+    const toNumber = (value: unknown, fallback = 0) => {
+        if (value === null || value === undefined || value === "") return fallback;
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    };
+
     const showToast = (msg: string) => {
         setToastMessage(msg);
         setTimeout(() => setToastMessage(null), 4000);
@@ -62,15 +68,19 @@ export default function AdminBankAccountsPage() {
                         item.customer?.fullName ||
                         "Khách hàng hệ thống";
 
+                    const actualBalance = toNumber(item.actualBalance ?? item.balance ?? item.currentBalance);
+                    const holdingBalance = toNumber(item.holdingBalance ?? item.holdBalance ?? item.heldBalance);
+                    const availableBalance = toNumber(item.availableBalance, actualBalance - holdingBalance);
+
                     return {
                         id: item.id,
                         accountNumber: item.accountNumber || "---",
                         accountName: item.accountName || "Tài khoản thanh toán",
                         customerName: resolvedOwnerName,
                         accountType: item.accountType || "payment",
-                        actualBalance: item.balance || item.actualBalance || 0,
-                        holdingBalance: item.holdingBalance || 0,
-                        availableBalance: item.availableBalance || (item.balance ? (item.balance - (item.holdingBalance || 0)) : 0),
+                        actualBalance,
+                        holdingBalance,
+                        availableBalance,
                         status: item.status || "ACTIVE",
                         limitPerDay: item.limitPerDay || 100000000,
                         createdAt: item.createdAt || "2026-01-15"

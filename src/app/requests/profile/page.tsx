@@ -175,7 +175,7 @@ export default function ProfileRequestsPage() {
                                             <button
                                                 onClick={() =>
                                                     router.push(
-                                                        `/requests/${req.id}`
+                                                        `/requests/profile/${req.id}`
                                                     )
                                                 }
                                                 className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"

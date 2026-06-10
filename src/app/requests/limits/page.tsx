@@ -40,7 +40,9 @@ export default function LimitsPage() {
         useState<AccountLimit[]>([]);
     const [selectedAccount, setSelectedAccount] =
         useState<AccountLimit | null>(null);
-
+    const [selectedRequest, setSelectedRequest] =
+        useState<ServiceRequestDetail | null>(null);
+ 
     const [showEditModal, setShowEditModal] =
         useState(false);
     const [loading, setLoading] = useState(true);
@@ -345,6 +347,13 @@ export default function LimitsPage() {
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-2">
                                                             <button
+                                                                onClick={() => setSelectedRequest(req)}
+                                                                className="px-4 py-1.5 text-xs font-semibold text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+                                                            >
+                                                                Chi tiết
+                                                            </button>
+
+                                                            <button
                                                                 disabled={
                                                                     isLoading
                                                                 }
@@ -359,7 +368,7 @@ export default function LimitsPage() {
                                                                     ? "..."
                                                                     : "Duyệt"}
                                                             </button>
-
+ 
                                                             <button
                                                                 disabled={
                                                                     isLoading
@@ -471,6 +480,89 @@ export default function LimitsPage() {
                     )}
                 </div>
             </div>
+            {selectedRequest && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-2xl p-8 shadow-xl">
+                        <div className="flex items-start justify-between gap-4 mb-6">
+                            <div>
+                                <h2 className="text-3xl font-bold">Chi tiết yêu cầu hạn mức</h2>
+                                <p className="text-gray-500 mt-1">Mã yêu cầu #{selectedRequest.id}</p>
+                            </div>
+                            <button
+                                onClick={() => setSelectedRequest(null)}
+                                className="text-gray-400 hover:text-gray-700 text-2xl leading-none"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div className="bg-gray-50 rounded-xl p-4">
+                                <div className="text-gray-500 mb-1">Khách hàng</div>
+                                <div className="font-semibold text-gray-900">{selectedRequest.userName}</div>
+                                <div className="text-gray-500">{selectedRequest.userPhone}</div>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-4">
+                                <div className="text-gray-500 mb-1">Ngày gửi</div>
+                                <div className="font-semibold text-gray-900">{formatDate(selectedRequest.submittedAt)}</div>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-4">
+                                <div className="text-gray-500 mb-1">Tài khoản</div>
+                                <div className="font-semibold text-gray-900">{selectedRequest.limitChange?.accountName ?? "—"}</div>
+                                <div className="text-gray-500">{selectedRequest.limitChange?.accountNumber ?? "—"}</div>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-4">
+                                <div className="text-gray-500 mb-1">Trạng thái</div>
+                                <div className="font-semibold text-gray-900">{selectedRequest.status}</div>
+                            </div>
+                            <div className="bg-blue-50 rounded-xl p-4">
+                                <div className="text-gray-500 mb-1">Hạn mức hiện tại</div>
+                                <div className="font-semibold text-gray-900">{formatMoney(selectedRequest.limitChange?.currentDailyTransferLimit)}</div>
+                            </div>
+                            <div className="bg-green-50 rounded-xl p-4">
+                                <div className="text-gray-500 mb-1">Hạn mức yêu cầu</div>
+                                <div className="font-semibold text-green-700">{formatMoney(selectedRequest.limitChange?.requestedDailyTransferLimit)}</div>
+                            </div>
+                        </div>
+
+                        <div className="mt-4 bg-gray-50 rounded-xl p-4 text-sm">
+                            <div className="text-gray-500 mb-1">Lý do / nội dung</div>
+                            <div className="text-gray-900 whitespace-pre-wrap">
+                                {selectedRequest.limitChange?.reason || selectedRequest.description || selectedRequest.title || "—"}
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-8">
+                            <button
+                                onClick={() => setSelectedRequest(null)}
+                                className="px-5 py-2.5 border rounded-xl"
+                            >
+                                Đóng
+                            </button>
+                            <button
+                                disabled={actionLoading === selectedRequest.id}
+                                onClick={async () => {
+                                    await handleReject(selectedRequest.id);
+                                    setSelectedRequest(null);
+                                }}
+                                className="px-5 py-2.5 text-red-600 border border-red-300 rounded-xl hover:bg-red-50 disabled:opacity-50"
+                            >
+                                Từ chối
+                            </button>
+                            <button
+                                disabled={actionLoading === selectedRequest.id}
+                                onClick={async () => {
+                                    await handleApprove(selectedRequest.id);
+                                    setSelectedRequest(null);
+                                }}
+                                className="px-5 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50"
+                            >
+                                Duyệt
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {showEditModal && selectedAccount && (
                 <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
                     <div className="bg-white rounded-2xl w-full max-w-2xl p-8 shadow-xl">

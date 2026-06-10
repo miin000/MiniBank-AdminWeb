@@ -92,6 +92,37 @@ export interface AdminChatConversationDetail {
   messages: AdminChatMessage[];
 }
 
+export interface AdminSupportNote {
+  id: number;
+  userId: number;
+  userName: string | null;
+  userCode: string | null;
+  content: string;
+  noteType: string;
+  conversationId: number | null;
+  createdByName: string | null;
+  createdAt: string;
+}
+
+const SUPPORT_NOTES_KEY = "adminSupportNotes";
+
+function readLocalSupportNotes(): AdminSupportNote[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(SUPPORT_NOTES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as AdminSupportNote[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalSupportNotes(notes: AdminSupportNote[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(SUPPORT_NOTES_KEY, JSON.stringify(notes));
+}
+
 export async function listFaqCategories(): Promise<AdminFaqCategory[]> {
   return requestJson<AdminFaqCategory[]>("/api/admin/chatbot/faq/categories");
 }
@@ -207,4 +238,59 @@ export async function addChatNote(conversationId: number, note: string): Promise
     method: "POST",
     body: JSON.stringify({ note }),
   });
+}
+
+export async function listSupportNotes(): Promise<AdminSupportNote[]> {
+  return readLocalSupportNotes().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function createSupportNote(payload: {
+  userId: number;
+  content: string;
+  noteType: string;
+  conversationId?: number | null;
+}): Promise<AdminSupportNote> {
+  const notes = readLocalSupportNotes();
+  const note: AdminSupportNote = {
+    id: Date.now(),
+    userId: payload.userId,
+    userName: payload.userId > 0 ? `KH #${payload.userId}` : "Khách hàng",
+    userCode: payload.userId > 0 ? String(payload.userId) : null,
+    content: payload.content,
+    noteType: payload.noteType,
+    conversationId: payload.conversationId ?? null,
+    createdByName: "Admin",
+    createdAt: new Date().toISOString(),
+  };
+  writeLocalSupportNotes([note, ...notes]);
+  return note;
+}
+
+export async function updateSupportNote(
+  noteId: number,
+  payload: {
+    userId: number;
+    content: string;
+    noteType: string;
+    conversationId?: number | null;
+  }
+): Promise<AdminSupportNote> {
+  const notes = readLocalSupportNotes();
+  const existing = notes.find((item) => item.id === noteId);
+  if (!existing) throw new Error("Không tìm thấy ghi chú");
+  const updated: AdminSupportNote = {
+    ...existing,
+    userId: payload.userId,
+    userName: payload.userId > 0 ? existing.userName ?? `KH #${payload.userId}` : existing.userName,
+    userCode: payload.userId > 0 ? existing.userCode ?? String(payload.userId) : existing.userCode,
+    content: payload.content,
+    noteType: payload.noteType,
+    conversationId: payload.conversationId ?? null,
+  };
+  writeLocalSupportNotes(notes.map((item) => (item.id === noteId ? updated : item)));
+  return updated;
+}
+
+export async function deleteSupportNote(noteId: number): Promise<void> {
+  writeLocalSupportNotes(readLocalSupportNotes().filter((item) => item.id !== noteId));
 }

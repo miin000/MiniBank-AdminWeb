@@ -43,7 +43,7 @@ const formatUploadedAt = (value?: string | null) => {
 
 const statusOptions = [
     { value: "ALL", label: "Tất cả trạng thái DB" },
-    { value: "PENDING", label: "Chờ thẩm định (PENDING)" },
+    { value: "PENDING", label: "Chờ xem (PENDING)" },
     { value: "APPROVED", label: "Đã phê duyệt (APPROVED)" },
     { value: "REJECTED", label: "Đã từ chối (REJECTED)" },
 ];
@@ -62,10 +62,9 @@ export default function AdminCustomerDocumentsPage() {
     const [statusFilter, setStatusFilter] = useState("ALL");
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-    // States quản lý Modal Thẩm định hồ sơ & cập nhật DB
+    // States quản lý Modal xem hồ sơ
     const [selectedDoc, setSelectedDoc] = useState<DocumentSummary | null>(null);
     const [reviewNote, setReviewNote] = useState("");
-    const [submitting, setSubmitting] = useState(false);
 
     // ==========================================
     // HÀM 1: TRUY VẤN ĐỌC DỮ LIỆU TỪ DATABASE (API GET)
@@ -111,48 +110,6 @@ export default function AdminCustomerDocumentsPage() {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchDocumentsFromDB();
     }, [fetchDocumentsFromDB]);
-
-
-    const handleUpdateDatabaseStatus = async (targetStatus: "APPROVED" | "REJECTED") => {
-        if (!token || !selectedDoc) return;
-
-        // Nếu bấm từ chối hồ sơ thì bắt buộc kiểm duyệt viên phải nhập lý do vào ô Note để lưu DB
-        if (targetStatus === "REJECTED" && !reviewNote.trim()) {
-            alert("Vui lòng nhập lý do từ chối hồ sơ để hệ thống ghi nhận vào lịch sử Database.");
-            return;
-        }
-
-        setSubmitting(true);
-        try {
-            // Gửi chính xác đến địa chỉ API xử lý cập nhật dòng của dữ liệu: /api/admin/documents/{id}/verify
-            const res = await fetch(`${API_BASE}/api/admin/documents/${selectedDoc.id}/verify`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                    status: targetStatus.toLowerCase(),
-                    note: reviewNote.trim() || "", // Ghi chú lưu trực tiếp vào trường note trong DB
-                }),
-            });
-
-            if (res.ok) {
-                // Tắt Modal xử lý nhanh
-                setSelectedDoc(null);
-                setReviewNote("");
-                // Gọi lại hàm đọc dữ liệu để bảng Frontend lập tức cập nhật trạng thái mới nhất từ DB lên màn hình
-                fetchDocumentsFromDB();
-            } else {
-                const errorText = await res.text();
-                alert(`Cơ sở dữ liệu từ chối cập nhật: ${errorText}`);
-            }
-        } catch {
-            alert("Xung đột kết nối: Không thể gửi dữ liệu lệnh ghi xuống Database.");
-        } finally {
-            setSubmitting(false);
-        }
-    };
 
     // Hàm lọc tìm kiếm Client-side tiện dụng trên tập dữ liệu đã tải từ DB về
     const filteredDocs = useMemo(() => {
@@ -274,7 +231,7 @@ export default function AdminCustomerDocumentsPage() {
                                                     {doc.verifiedStatus?.toUpperCase() === "APPROVED" ? <CheckCircle2 size={11} /> :
                                                         doc.verifiedStatus?.toUpperCase() === "REJECTED" ? <XCircle size={11} /> :
                                                             <AlertCircle size={11} />}
-                                                    {doc.verifiedStatus?.toUpperCase() === "APPROVED" ? "Đã duyệt" : doc.verifiedStatus?.toUpperCase() === "REJECTED" ? "Bị từ chối" : "Chờ thẩm định"}
+                                                    {doc.verifiedStatus?.toUpperCase() === "APPROVED" ? "Đã duyệt" : doc.verifiedStatus?.toUpperCase() === "REJECTED" ? "Bị từ chối" : "Chờ xem"}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3.5 text-center">
@@ -283,7 +240,7 @@ export default function AdminCustomerDocumentsPage() {
                                                     onClick={() => { setSelectedDoc(doc); setReviewNote(doc.note ?? ""); }}
                                                     className="inline-flex h-7 items-center gap-1 rounded-lg border border-black/10 bg-white px-2.5 text-[11px] font-bold text-zinc-700 shadow-sm hover:bg-zinc-50 transition"
                                                 >
-                                                    <Eye size={12} /> {doc.verifiedStatus?.toUpperCase() === "PENDING" ? "Thẩm định" : "Xem chi tiết"}
+                                                    <Eye size={12} /> Xem / tải về
                                                 </button>
                                             </td>
                                         </tr>
@@ -294,7 +251,7 @@ export default function AdminCustomerDocumentsPage() {
                     </div>
                 </div>
 
-                {/* CỬA SỔ CHI TIẾT TÀI LIỆU & BIỂU MẪU GHI RECORD DUYỆT XUỐNG DB (MODAL) */}
+                {/* CỬA SỔ XEM CHI TIẾT TÀI LIỆU (MODAL) */}
                 {selectedDoc && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn">
                         <div className="w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl border border-black/5 animate-in scale-in duration-150">
@@ -302,7 +259,7 @@ export default function AdminCustomerDocumentsPage() {
                             {/* Tiêu đề Modal */}
                             <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-3.5 bg-zinc-50">
                                 <div>
-                                    <h3 className="text-xs font-bold text-zinc-900">Thẩm định hồ sơ ID bản ghi: #{selectedDoc.id}</h3>
+                                    <h3 className="text-xs font-bold text-zinc-900">Xem tài liệu ID bản ghi: #{selectedDoc.id}</h3>
                                     <p className="text-[10px] text-zinc-500 mt-0.5">Tên tệp gốc: {selectedDoc.fileName ?? selectedDoc.fileUrl} | Phân loại: {translateDocType(selectedDoc.documentType)}</p>
                                 </div>
                                 <button type="button" onClick={() => setSelectedDoc(null)} className="text-zinc-400 hover:text-zinc-600"><X size={16} /></button>
@@ -335,7 +292,7 @@ export default function AdminCustomerDocumentsPage() {
                                     )}
                                 </div>
 
-                                {/* Khối điền nội dung duyệt & lưu vào bảng */}
+                                {/* Khối thông tin và tải về tài liệu */}
                                 <div className="w-full md:w-80 p-5 flex flex-col justify-between bg-white overflow-y-auto">
                                     <div className="space-y-4">
                                         <div>
@@ -348,56 +305,43 @@ export default function AdminCustomerDocumentsPage() {
                                         </div>
 
                                         <div className="border-t border-zinc-100 pt-3">
-                                            <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider block">Ghi chú kiểm duyệt / Lý do từ chối (Ghi đè DB)</label>
+                                            <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider block">Ghi chú tài liệu</label>
                                             <textarea
                                                 rows={5}
-                                                placeholder="Nếu bạn bấm 'Từ chối hồ sơ', bắt buộc điền chi tiết lý do tại đây để lưu giữ vết thông tin trong DB..."
+                                                placeholder="Không có ghi chú"
                                                 value={reviewNote}
-                                                onChange={(e) => setReviewNote(e.target.value)}
-                                                disabled={selectedDoc.verifiedStatus?.toUpperCase() !== "PENDING" || submitting}
+                                                readOnly
                                                 className="mt-1.5 w-full rounded-xl border border-black/10 p-3 text-xs outline-none focus:border-orange-600 disabled:bg-zinc-50 disabled:text-zinc-500 bg-zinc-50/50 resize-none transition"
                                             />
                                         </div>
                                     </div>
 
-                                    {/* Cụm nút bấm tương tác trực tiếp lên DB */}
+                                    {/* Cụm nút xem/tải file */}
                                     <div className="border-t border-zinc-100 pt-4 mt-6">
-                                        {selectedDoc.verifiedStatus?.toUpperCase() === "PENDING" ? (
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <button
-                                                    type="button"
-                                                    disabled={submitting}
-                                                    onClick={() => handleUpdateDatabaseStatus("REJECTED")}
-                                                    className="flex h-9 items-center justify-center gap-1 rounded-xl bg-red-600 text-xs font-bold text-white transition hover:bg-red-700 disabled:opacity-50 shadow-sm"
-                                                >
-                                                    Từ chối hồ sơ
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    disabled={submitting}
-                                                    onClick={() => handleUpdateDatabaseStatus("APPROVED")}
-                                                    className="flex h-9 items-center justify-center gap-1 rounded-xl bg-emerald-600 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50 shadow-sm"
-                                                >
-                                                    Phê duyệt đạt
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-2">
-                                                {selectedDoc.note && (
-                                                    <div className="rounded-xl bg-zinc-50 border p-2.5 text-[11px] text-zinc-600">
-                                                        <span className="font-bold block text-zinc-500 mb-0.5">Lý do đã ghi nhận trong DB:</span>
-                                                        {selectedDoc.note}
-                                                    </div>
-                                                )}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setSelectedDoc(null)}
-                                                    className="w-full h-9 rounded-xl border border-black/10 text-xs font-bold text-zinc-600 hover:bg-zinc-50 transition"
-                                                >
-                                                    Đóng cửa sổ chi tiết
-                                                </button>
-                                            </div>
-                                        )}
+                                        <div className="space-y-2">
+                                            <a
+                                                href={resolveFileUrl(selectedDoc.fileUrl)}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="flex h-9 items-center justify-center gap-1 rounded-xl bg-blue-600 text-xs font-bold text-white transition hover:bg-blue-700 shadow-sm"
+                                            >
+                                                Xem file
+                                            </a>
+                                            <a
+                                                href={resolveFileUrl(selectedDoc.fileUrl)}
+                                                download={selectedDoc.fileName ?? true}
+                                                className="flex h-9 items-center justify-center gap-1 rounded-xl border border-black/10 text-xs font-bold text-zinc-600 hover:bg-zinc-50 transition"
+                                            >
+                                                Tải về
+                                            </a>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedDoc(null)}
+                                                className="w-full h-9 rounded-xl border border-black/10 text-xs font-bold text-zinc-600 hover:bg-zinc-50 transition"
+                                            >
+                                                Đóng cửa sổ chi tiết
+                                            </button>
+                                        </div>
                                     </div>
 
                                 </div>

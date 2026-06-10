@@ -10,8 +10,8 @@ type FluctuationItem = {
     customerName: string;
     type: string;
     amount: number;
-    balanceBefore: number;
-    balanceAfter: number;
+    balanceBefore: number | null;
+    balanceAfter: number | null;
     description: string;
 };
 
@@ -20,6 +20,12 @@ export default function AdminBalanceFluctuationsPage() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [typeFilter, setTypeFilter] = useState("");
+
+    const toNumberOrNull = (value: unknown): number | null => {
+        if (value === null || value === undefined || value === "") return null;
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    };
 
     const loadData = async () => {
         try {
@@ -56,10 +62,9 @@ export default function AdminBalanceFluctuationsPage() {
                         accountNumber: isInflow ? (item.toAccountNumber || "---") : (item.fromAccountNumber || "---"),
                         customerName: isInflow ? (item.toAccountName || "Hệ thống") : (item.fromAccountName || "Khách hàng"),
                         type: isInflow ? "INFLOW" : "OUTFLOW",
-                        amount: item.amount || 0,
-                        // Thuật toán tính số dư trước/sau tự động nếu database chưa trả về trường balanceBefore/After cụ thể
-                        balanceBefore: item.balanceBefore ?? (item.amount * 3),
-                        balanceAfter: item.balanceAfter ?? (isInflow ? (item.amount * 4) : (item.amount * 2)),
+                        amount: Number(item.amount ?? 0),
+                        balanceBefore: toNumberOrNull(item.balanceBefore ?? item.beforeBalance ?? item.previousBalance),
+                        balanceAfter: toNumberOrNull(item.balanceAfter ?? item.afterBalance ?? item.newBalance),
                         description: item.description || `Giao dịch hệ thống ${item.transactionCode || ""}`
                     };
                 });
@@ -174,8 +179,8 @@ export default function AdminBalanceFluctuationsPage() {
                                         <td className={`p-4 text-right font-mono font-bold ${isInflow ? "text-green-600" : "text-red-600"}`}>
                                             {isInflow ? "+" : "-"}{item.amount.toLocaleString()} đ
                                         </td>
-                                        <td className="p-4 text-right font-mono text-zinc-400">{item.balanceBefore.toLocaleString()} đ</td>
-                                        <td className="p-4 text-right font-mono font-bold text-zinc-950">{item.balanceAfter.toLocaleString()} đ</td>
+                                        <td className="p-4 text-right font-mono text-zinc-400">{item.balanceBefore === null ? "-" : `${item.balanceBefore.toLocaleString()} đ`}</td>
+                                        <td className="p-4 text-right font-mono font-bold text-zinc-950">{item.balanceAfter === null ? "-" : `${item.balanceAfter.toLocaleString()} đ`}</td>
                                         <td className="p-4 pl-6 text-zinc-500 font-medium max-w-xs truncate" title={item.description}>{item.description}</td>
                                     </tr>
                                 );
