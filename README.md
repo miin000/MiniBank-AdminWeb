@@ -1,51 +1,103 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MiniBank Admin Web
 
-## Getting Started
+Trang quản trị dành cho nhân viên ngân hàng, xây dựng bằng Next.js. Ứng dụng
+gọi MiniBank Backend để quản lý khách hàng, sản phẩm tài chính, giao dịch,
+phê duyệt và phân quyền.
 
-### Configure API base URL
+## Tính năng chính
 
-This admin web calls the backend auth endpoints:
+- Đăng nhập và đăng ký tài khoản quản trị.
+- Dashboard và báo cáo tổng quan.
+- Quản lý khách hàng, hồ sơ KYC và tài liệu.
+- Quản lý tài khoản ngân hàng, giao dịch và hoàn tiền.
+- Quản lý sản phẩm vay, hồ sơ vay, hợp đồng, hạn mức và lịch trả nợ.
+- Quản lý sản phẩm tiết kiệm, tài khoản và yêu cầu tất toán.
+- Quy trình phê duyệt giao dịch lớn, khoản vay và tiết kiệm.
+- Quản lý nhân viên, vai trò, quyền và nhật ký audit.
+- Chatbot/hỗ trợ thời gian thực qua WebSocket/STOMP.
 
-- `POST /api/admin/auth/register`
-- `POST /api/admin/auth/login`
+## Công nghệ
 
-Set `NEXT_PUBLIC_API_BASE_URL` to your backend base URL (example when BE runs on port 8081).
+- Next.js `16.2.4` với React `19.2.4` và TypeScript.
+- Tailwind CSS, Recharts, Lucide React và Sonner.
+- Next.js App Router.
+- Native WebSocket/STOMP client kết nối backend.
 
-Create `banking-admin/.env` (or `banking-admin/.env.local`):
+## Yêu cầu
 
-```env
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8081
+- Node.js phiên bản LTS tương thích với Next.js 16.
+- npm (hoặc yarn/pnpm/bun).
+- MiniBank Backend đang chạy và có thể truy cập từ trình duyệt.
+
+## Cài đặt
+
+```bash
+npm install
 ```
 
-First, run the development server:
+Tạo `banking-admin/.env.local`:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+```
+
+Giá trị phải là base URL của backend, không thêm dấu `/` ở cuối. Một số môi
+trường hiện có thể chạy backend ở cổng `8081`; khi đó thay đổi URL tương ứng.
+Biến có tiền tố `NEXT_PUBLIC_` được đưa vào trình duyệt, vì vậy không đặt
+secret vào biến này.
+
+## Chạy phát triển
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Mở [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Kiểm tra và build production
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run lint
+npm run build
+npm run start
+```
 
-## Learn More
+`npm run start` chạy server production sau khi `npm run build` thành công.
 
-To learn more about Next.js, take a look at the following resources:
+## Cấu trúc thư mục
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```text
+src/
+├── app/       # Route, layout và màn hình theo App Router
+└── lib/       # API client, WebSocket client và tiện ích dùng chung
+public/        # Tài nguyên tĩnh
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Các route quản trị nằm dưới `src/app`, còn các client gọi backend nằm dưới
+`src/lib/api`. Base URL được đọc từ `NEXT_PUBLIC_API_BASE_URL`; WebSocket dùng
+endpoint `/ws` tương ứng.
 
-## Deploy on Vercel
+## Luồng kết nối
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```text
+Trình duyệt -> Admin Web -> MiniBank Backend -> PostgreSQL
+                                      └-----> AI Service
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Backend chịu trách nhiệm xác thực, phân quyền và kiểm tra dữ liệu. Không kết
+nối trực tiếp từ admin web tới PostgreSQL.
+
+## Lưu ý triển khai
+
+- Cấu hình CORS và địa chỉ frontend ở backend trước khi deploy.
+- Chỉ dùng HTTPS/WSS trong môi trường production.
+- Không commit `.env`, token, cookie, khóa ký hoặc thông tin khách hàng.
+- Kiểm tra quyền theo vai trò trên backend; ẩn menu ở frontend không thay thế
+  cho phân quyền phía server.
+
+## Góp phần
+
+1. Tạo branch từ `main`.
+2. Chạy `npm run lint` và `npm run build`.
+3. Mô tả endpoint/backend cần thiết khi thay đổi luồng quản trị.
+4. Không đưa secret hoặc dữ liệu khách hàng thật vào commit.
